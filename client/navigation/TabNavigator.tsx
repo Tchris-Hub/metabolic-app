@@ -4,11 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, Text } from 'react-native';
 
 // Import your screen components here
-// import HomeScreen from '../app/screens/HomeScreen';
-// import LogScreen from '../app/screens/LogScreen';
-// import MealScreen from '../app/screens/MealScreen';
-// import LearnScreen from '../app/screens/LearnScreen';
-// import MoreScreen from '../app/screens/MoreScreen';
+import HomeScreen from '../app/screens/(tabs)/Homescreen';
+import LogScreen from '../app/screens/(tabs)/Logscreen';
+import MealScreen from '../app/screens/(tabs)/Mealscreen';
+import LearnScreen from '../app/screens/(tabs)/Learnscreen';
+import MoreScreen from '../app/screens/(tabs)/Morescreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -67,35 +67,35 @@ export default function TabNavigator() {
     >
       <Tab.Screen 
         name="Home" 
-        component={() => <PlaceholderScreen title="Home Screen" />}
+        component={HomeScreen}
         options={{
           tabBarLabel: 'Home',
         }}
       />
       <Tab.Screen 
         name="Log" 
-        component={() => <PlaceholderScreen title="Log Screen" />}
+        component={LogScreen}
         options={{
           tabBarLabel: 'Log',
         }}
       />
       <Tab.Screen 
         name="Meal" 
-        component={() => <PlaceholderScreen title="Meal Screen" />}
+        component={MealScreen}
         options={{
           tabBarLabel: 'Meal',
         }}
       />
       <Tab.Screen 
         name="Learn" 
-        component={() => <PlaceholderScreen title="Learn Screen" />}
+        component={LearnScreen}
         options={{
           tabBarLabel: 'Learn',
         }}
       />
       <Tab.Screen 
         name="More" 
-        component={() => <PlaceholderScreen title="More Screen" />}
+        component={MoreScreen}
         options={{
           tabBarLabel: 'More',
         }}

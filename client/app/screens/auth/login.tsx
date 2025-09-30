@@ -5,10 +5,12 @@ import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const { width: W } = Dimensions.get('window');
 
 export default function LoginScreen() {
+  const { login, isLoading } = useAuth();
   const logoBreath = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
@@ -33,10 +35,15 @@ export default function LoginScreen() {
     fn();
   };
 
-  const signIn = () => {
+  const signIn = async () => {
     if (!canSignIn) return;
-    // TODO: call auth backend, then navigate
-    router.replace('/');
+    try {
+      await login(email, password);
+      router.replace('/(tabs)');
+    } catch (error) {
+      console.error('Login failed:', error);
+      // TODO: Show error message to user
+    }
   };
 
   const onGoogleSignIn = () => {

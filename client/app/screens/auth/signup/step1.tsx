@@ -5,6 +5,7 @@ import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '../../../../contexts/AuthContext';
 
 const { width: W } = Dimensions.get('window');
 
@@ -19,6 +20,7 @@ function getStrength(pw: string) {
 }
 
 export default function SignUpStep1() {
+  const { signup, isLoading } = useAuth();
   const logoBreath = useRef(new Animated.Value(0)).current;
   React.useEffect(() => {
     Animated.loop(
@@ -47,9 +49,16 @@ export default function SignUpStep1() {
   const match = password.length > 0 && password === confirm;
   const canContinue = emailValid && pwValid && match;
 
-  const goNext = () => {
+  const goNext = async () => {
     if (!canContinue) return;
-    router.push({ pathname: '/screens/auth/verification', params: { email } });
+    try {
+      await signup(email, password, email.split('@')[0]);
+      // After signup, user will be redirected to profile setup automatically
+      router.replace('/screens/auth/profile');
+    } catch (error) {
+      console.error('Signup failed:', error);
+      // TODO: Show error message to user
+    }
   };
 
   return (

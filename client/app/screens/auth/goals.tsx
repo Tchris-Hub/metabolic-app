@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import SuccessScreen from '../../../component/ui/successscreen';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -83,6 +84,7 @@ const HEALTH_GOALS = [
 ];
 
 export default function GoalsScreen() {
+  const { completeOnboarding } = useAuth();
   const logoBreath = useRef(new Animated.Value(0)).current;
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
@@ -118,19 +120,22 @@ export default function GoalsScreen() {
 
   const canContinue = selectedGoals.length > 0;
 
-  const continueToApp = () => {
+  const continueToApp = async () => {
     if (!canContinue) return;
     // TODO: Save goals to user profile
+    await completeOnboarding();
     setIsCompleted(true);
   };
 
-  const skipGoals = () => {
+  const skipGoals = async () => {
     // Navigate to main app without goals
+    await completeOnboarding();
     setIsCompleted(true);
   };
 
   const goToMainApp = () => {
-    router.replace('/');
+    console.log('🚀 Navigating to main app...');
+    router.replace('/(tabs)');
   };
 
   const goBackToProfile = () => {
