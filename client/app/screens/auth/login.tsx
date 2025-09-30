@@ -1,9 +1,10 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Dimensions, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Dimensions, Animated, Switch } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 const { width: W } = Dimensions.get('window');
 
@@ -22,14 +23,30 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const emailValid = useMemo(() => /.+@.+\..+/.test(email), [email]);
   const canSignIn = emailValid && password.length >= 1;
+
+  const press = (fn: () => void) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    fn();
+  };
 
   const signIn = () => {
     if (!canSignIn) return;
     // TODO: call auth backend, then navigate
     router.replace('/');
+  };
+
+  const onGoogleSignIn = () => {
+    // TODO: implement Google sign-in
+    console.log('Google sign-in');
+  };
+
+  const onAppleSignIn = () => {
+    // TODO: implement Apple sign-in
+    console.log('Apple sign-in');
   };
 
   return (
@@ -44,7 +61,7 @@ export default function LoginScreen() {
 
       {/* Header with centered logo */}
       <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
-        <TouchableOpacity onPress={() => router.replace('/screens/auth/welcome-screen')} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
+        <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/welcome-screen'))} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
@@ -90,18 +107,53 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        <View className="flex-row justify-between mt-3">
-          <TouchableOpacity onPress={() => router.push('/screens/auth/signup/step1')}>
-            <Text className="text-white/80 underline">Create account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('./screens/auth/forgot-password')}>
-            <Text className="text-white underline">Forgot password?</Text>
+        {/* Remember me */}
+        <View className="flex-row items-center justify-between mt-4">
+          <View className="flex-row items-center">
+            <Switch
+              value={rememberMe}
+              onValueChange={setRememberMe}
+              trackColor={{ false: 'rgba(255,255,255,0.3)', true: '#4CAF50' }}
+              thumbColor={rememberMe ? '#fff' : '#f4f3f4'}
+              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+            />
+            <Text className="text-white/90 ml-2 text-sm">Remember me</Text>
+          </View>
+          <TouchableOpacity onPress={() => press(() => router.push('/screens/auth/forgottenpassword'))}>
+            <Text className="text-white underline text-sm">Forgot password?</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity disabled={!canSignIn} onPress={signIn} className="rounded-full mt-6" style={{ backgroundColor: canSignIn ? 'white' : 'rgba(255,255,255,0.4)', paddingVertical: 14 }}>
+        {/* Sign In button */}
+        <TouchableOpacity disabled={!canSignIn} onPress={() => press(signIn)} className="rounded-full mt-6" style={{ backgroundColor: canSignIn ? 'white' : 'rgba(255,255,255,0.4)', paddingVertical: 14 }}>
           <Text className="text-center font-bold" style={{ color: canSignIn ? '#111827' : '#374151' }}>Sign In</Text>
         </TouchableOpacity>
+
+        {/* Divider */}
+        <View className="flex-row items-center justify-center mt-6 mb-4" style={{ gap: 10 }}>
+          <View style={{ height: 1, flex: 1, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+          <Text className="text-white/80 text-xs">or continue with</Text>
+          <View style={{ height: 1, flex: 1, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+        </View>
+
+        {/* Social sign-ins */}
+        <TouchableOpacity onPress={() => press(onGoogleSignIn)} className="rounded-full flex-row items-center justify-center mb-3" style={{ backgroundColor: 'white', paddingVertical: 14 }}>
+          <Ionicons name="logo-google" size={20} color="#1F2937" style={{ marginRight: 8 }} />
+          <Text className="text-gray-900 font-bold text-center">Continue with Google</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => press(onAppleSignIn)} className="rounded-full flex-row items-center justify-center mb-4" style={{ backgroundColor: '#000', paddingVertical: 14 }}>
+          <Ionicons name="logo-apple" size={20} color="#fff" style={{ marginRight: 8 }} />
+          <Text className="text-white font-bold text-center">Continue with Apple</Text>
+        </TouchableOpacity>
+
+        {/* Create account link */}
+        <View className="flex-row justify-center">
+          <Text className="text-white/80 text-sm">Don't have an account? </Text>
+          <TouchableOpacity onPress={() => press(() => router.push('/screens/auth/signup/step1'))}>
+            <Text className="text-white underline text-sm font-semibold">Create one</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );

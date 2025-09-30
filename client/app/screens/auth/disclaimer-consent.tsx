@@ -32,7 +32,7 @@ export default function DisclaimerConsentScreen() {
   };
 
   const decline = () => {
-    router.back();
+    router.replace('/screens/auth/PremiumOnboardingScreen');
   };
 
   const Check = ({ checked }: { checked: boolean }) => (

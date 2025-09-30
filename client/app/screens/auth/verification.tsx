@@ -4,12 +4,15 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import SuccessScreen from '../../../component/ui/successscreen';
 
 const { width: W, height: H } = Dimensions.get('window');
 
 export default function VerificationScreen() {
   const { email } = useLocalSearchParams();
   const displayEmail = typeof email === 'string' ? email : 'your email';
+  const [isVerified, setIsVerified] = useState(false);
 
   const logoBreath = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -21,6 +24,11 @@ export default function VerificationScreen() {
     ).start();
   }, [logoBreath]);
   const Breath = (v: Animated.Value) => ({ transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.05] }) }] });
+
+  const press = (fn: () => void) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    fn();
+  };
 
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const inputs = [useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null), useRef<TextInput>(null)];
@@ -56,9 +64,32 @@ export default function VerificationScreen() {
 
   const verify = () => {
     if (!isValid) return;
-    // TODO: verify via backend, then navigate
-    router.replace('/');
+    // TODO: verify via backend, then show success
+    setIsVerified(true);
   };
+
+  const goToProfile = () => {
+    router.replace('/screens/auth/profile');
+  };
+
+  const goBackToSignup = () => {
+    router.replace('/screens/auth/signup/step1');
+  };
+
+  // Show success screen after verification
+  if (isVerified) {
+    return (
+      <SuccessScreen
+        title="Email Verified!"
+        subtitle="Your email has been successfully verified. You can now complete your profile setup."
+        buttonText="Continue to Profile"
+        onButtonPress={goToProfile}
+        showBackButton={true}
+        backButtonText="Back to Signup"
+        onBackPress={goBackToSignup}
+      />
+    );
+  }
 
   return (
     <View className="flex-1">
@@ -72,7 +103,7 @@ export default function VerificationScreen() {
 
       {/* Header with centered logo */}
       <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
+        <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/signup/step2'))} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
@@ -110,7 +141,7 @@ export default function VerificationScreen() {
           <TouchableOpacity onPress={resend} disabled={cooldown > 0}>
             <Text className={`underline ${cooldown > 0 ? 'text-white/60' : 'text-white'}`}>Resend code{cooldown > 0 ? ` (${cooldown}s)` : ''}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/signup/step2'))}>
             <Text className="text-white underline">Change email</Text>
           </TouchableOpacity>
         </View>

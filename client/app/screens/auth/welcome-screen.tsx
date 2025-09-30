@@ -42,7 +42,7 @@ export default function WelcomeScreen() {
     try { await Haptics.selectionAsync(); } catch {}
     cb && cb();
   };
-  const onContinueEmail = () => press(() => router.push('/screens/auth/signup'));
+  const onContinueEmail = () => press(() => router.push('/screens/auth/signup/step1'));
   const onContinueGoogle = () => press();
   const onContinueApple = () => press();
   const onContinuePhone = () => press();
@@ -73,7 +73,7 @@ export default function WelcomeScreen() {
       <View style={{ alignItems: 'center', marginTop: H * 0.10 }}>
         {/* Back button to Disclaimer */}
         <TouchableOpacity
-          onPress={() => router.replace('/screens/auth/disclaimer-consent')}
+          onPress={() => press(() => router.replace('/screens/auth/disclaimer-consent'))}
           style={{ position: 'absolute', left: 20, top: -8, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}
         >
           <Ionicons name="chevron-back" size={20} color="#fff" />
@@ -123,7 +123,7 @@ export default function WelcomeScreen() {
           <Text className="text-white font-bold text-center">Create an Account</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => press(() => router.push('./screens/auth/login'))} className="rounded-full flex-row items-center justify-center mt-3" style={{ paddingVertical: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' }}>
+        <TouchableOpacity onPress={() => press(() => router.push('/screens/auth/login'))} className="rounded-full flex-row items-center justify-center mt-3" style={{ paddingVertical: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' }}>
           <Ionicons name="log-in" size={20} color="#fff" style={{ marginRight: 8 }} />
           <Text className="text-white font-bold text-center">Sign In</Text>
         </TouchableOpacity>

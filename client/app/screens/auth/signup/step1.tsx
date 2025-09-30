@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 const { width: W } = Dimensions.get('window');
 
@@ -36,6 +37,11 @@ export default function SignUpStep1() {
   const [showConfirm, setShowConfirm] = useState(false);
   const strength = getStrength(password);
 
+  const press = (fn: () => void) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    fn();
+  };
+
   const emailValid = useMemo(() => /.+@.+\..+/.test(email), [email]);
   const pwValid = useMemo(() => password.length >= 8 && strength >= 3, [password, strength]);
   const match = password.length > 0 && password === confirm;
@@ -43,7 +49,7 @@ export default function SignUpStep1() {
 
   const goNext = () => {
     if (!canContinue) return;
-    router.push({ pathname: '/screens/auth/signup/step2', params: { email } });
+    router.push({ pathname: '/screens/auth/verification', params: { email } });
   };
 
   return (
@@ -58,7 +64,7 @@ export default function SignUpStep1() {
 
       {/* Header with centered logo */}
       <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
-        <TouchableOpacity onPress={() => router.replace('/screens/auth/welcome-screen')} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
+        <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/welcome-screen'))} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
@@ -66,15 +72,10 @@ export default function SignUpStep1() {
             <Ionicons name="medical" size={36} color="#4CAF50" />
           </Animated.View>
           <Text className="text-white text-lg font-extrabold mt-4">Create your secure account</Text>
-          <Text className="text-white/80 text-xs mt-1">Step 1 of 2</Text>
         </View>
       </View>
 
-      {/* Progress */}
-      <View className="flex-row justify-center mt-4" style={{ gap: 8 }}>
-        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'white' }} />
-        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.5)' }} />
-      </View>
+      
 
       <View style={{ marginTop: 24, paddingHorizontal: 20 }}>
         {/* Email */}
@@ -137,7 +138,7 @@ export default function SignUpStep1() {
         <Text className="text-white/70 text-xs mt-1">{match || confirm.length === 0 ? ' ' : 'Passwords do not match.'}</Text>
 
         {/* Continue */}
-        <TouchableOpacity disabled={!canContinue} onPress={goNext} className="rounded-full mt-6" style={{ backgroundColor: canContinue ? 'white' : 'rgba(255,255,255,0.4)', paddingVertical: 14 }}>
+        <TouchableOpacity disabled={!canContinue} onPress={() => press(goNext)} className="rounded-full mt-6" style={{ backgroundColor: canContinue ? 'white' : 'rgba(255,255,255,0.4)', paddingVertical: 14 }}>
           <Text className="text-center font-bold" style={{ color: canContinue ? '#111827' : '#374151' }}>Continue</Text>
         </TouchableOpacity>
       </View>
