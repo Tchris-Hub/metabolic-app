@@ -43,7 +43,7 @@ interface SettingsState {
   app: AppSettings;
   isLoading: boolean;
   error: string | null;
-  lastUpdated: Date | null;
+  lastUpdated: string | null;
 }
 
 const initialState: SettingsState = {
@@ -96,42 +96,42 @@ const settingsSlice = createSlice({
     },
     updateNotificationSettings: (state, action: PayloadAction<Partial<NotificationSettings>>) => {
       state.notifications = { ...state.notifications, ...action.payload };
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     updateHealthSettings: (state, action: PayloadAction<Partial<HealthSettings>>) => {
       state.health = { ...state.health, ...action.payload };
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     updatePrivacySettings: (state, action: PayloadAction<Partial<PrivacySettings>>) => {
       state.privacy = { ...state.privacy, ...action.payload };
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     updateAppSettings: (state, action: PayloadAction<Partial<AppSettings>>) => {
       state.app = { ...state.app, ...action.payload };
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     resetNotificationSettings: (state) => {
       state.notifications = initialState.notifications;
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     resetHealthSettings: (state) => {
       state.health = initialState.health;
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     resetPrivacySettings: (state) => {
       state.privacy = initialState.privacy;
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     resetAppSettings: (state) => {
       state.app = initialState.app;
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     resetAllSettings: (state) => {
       state.notifications = initialState.notifications;
       state.health = initialState.health;
       state.privacy = initialState.privacy;
       state.app = initialState.app;
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date().toISOString();
     },
     loadSettings: (state, action: PayloadAction<Partial<SettingsState>>) => {
       if (action.payload.notifications) {
@@ -146,7 +146,7 @@ const settingsSlice = createSlice({
       if (action.payload.app) {
         state.app = { ...state.app, ...action.payload.app };
       }
-      state.lastUpdated = action.payload.lastUpdated || new Date();
+      state.lastUpdated = action.payload.lastUpdated || new Date().toISOString();
     },
   },
 });

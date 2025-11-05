@@ -1,5 +1,35 @@
 import { useState, useEffect, useCallback } from 'react';
-import { NotificationService, PushNotification } from '../services/firebase/notifications';
+// TODO: Implement Supabase notifications service
+// import { NotificationService, PushNotification } from '../services/supabase/notifications';
+
+// Placeholder types until notifications service is implemented
+export interface PushNotification {
+  id: string;
+  title: string;
+  body: string;
+  type: 'reminder' | 'achievement' | 'tip' | 'general';
+  read: boolean;
+  timestamp: string;
+  data?: Record<string, string>;
+}
+
+// Mock NotificationService for now
+const NotificationService = {
+  requestPermission: async () => true,
+  getFCMToken: async () => null,
+  subscribeToTopic: async (_topic: string) => {},
+  unsubscribeFromTopic: async (_topic: string) => {},
+  setupForegroundListener: (_cb: (n: PushNotification) => void) => () => {},
+  scheduleLocalNotification: async (_t: string, _b: string, _d?: Record<string, string>, _delay?: number) => {},
+  cancelLocalNotification: async (_id: string) => {},
+  getScheduledNotifications: async () => [],
+  markNotificationAsRead: async (_id: string) => {},
+  clearAllNotifications: async () => {},
+  scheduleMedicationReminder: async (_name: string, _time: Date, _userId: string) => {},
+  scheduleBloodSugarReminder: async (_time: Date, _userId: string) => {},
+  scheduleExerciseReminder: async (_time: Date, _userId: string) => {},
+  scheduleHydrationReminder: async (_time: Date, _userId: string) => {},
+};
 
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState<PushNotification[]>([]);

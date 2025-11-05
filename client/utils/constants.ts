@@ -290,7 +290,6 @@ export const NAVIGATION = {
     
     // Settings screens
     settings: 'Settings',
-    profile: 'Profile',
     premium: 'Premium',
   },
 };

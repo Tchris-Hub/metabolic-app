@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,23 +14,36 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import AdvancedLineChart from '../../component/charts/AdvancedLineChart';
+import { useAuth } from '../../contexts/AuthContext';
+import { HealthReadingsRepository } from '../../services/supabase/repositories/HealthReadingsRepository';
+import BloodPressureModal from '../../component/modals/BloodPressureModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function BloodPressureDetailScreen() {
-  const [filterRange, setFilterRange] = useState('7days');
-  
-  const readings = [
-    { id: '1', systolic: 120, diastolic: 80, time: new Date(2024, 0, 15, 8, 0) },
-    { id: '2', systolic: 118, diastolic: 78, time: new Date(2024, 0, 14, 8, 15) },
-    { id: '3', systolic: 122, diastolic: 82, time: new Date(2024, 0, 13, 8, 0) },
-    { id: '4', systolic: 119, diastolic: 79, time: new Date(2024, 0, 12, 8, 10) },
-    { id: '5', systolic: 121, diastolic: 81, time: new Date(2024, 0, 11, 8, 5) },
-    { id: '6', systolic: 117, diastolic: 77, time: new Date(2024, 0, 10, 8, 0) },
-    { id: '7', systolic: 120, diastolic: 80, time: new Date(2024, 0, 9, 8, 15) },
-  ];
+  const [filterRange, setFilterRange] = useState<'7days' | '30days' | '3months'>('7days');
+  const { user } = useAuth();
+  const [readings, setReadings] = useState<Array<{ id: string; systolic: number; diastolic: number; time: Date; notes?: string }>>([]);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const filterOptions = [
+  const days = useMemo(() => (filterRange === '7days' ? 7 : filterRange === '30days' ? 30 : 90), [filterRange]);
+
+  const load = async () => {
+    if (!user) return;
+    const rows = await HealthReadingsRepository.getReadingsByType(user.id, 'bloodPressure', { days });
+    const mapped = rows.map((r: any) => ({
+      id: r.id,
+      systolic: r.metadata?.systolic ?? r.value,
+      diastolic: r.metadata?.diastolic ?? 0,
+      time: new Date(r.timestamp),
+      notes: r.notes || undefined,
+    }));
+    setReadings(mapped);
+  };
+
+  useEffect(() => { load(); }, [user, days]);
+
+  const filterOptions: { value: '7days' | '30days' | '3months'; label: string }[] = [
     { value: '7days', label: '7 Days' },
     { value: '30days', label: '30 Days' },
     { value: '3months', label: '3 Months' },
@@ -68,6 +82,34 @@ export default function BloodPressureDetailScreen() {
     label: formatDate(r.time),
     color: getBPColor(r.systolic, r.diastolic),
   }));
+
+  const handleAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setModalVisible(true);
+  };
+
+  const handleSave = async (data: { systolic: string; diastolic: string; pulse?: string; time: Date }) => {
+    if (!user) return;
+    try {
+      const systolic = parseInt(data.systolic, 10);
+      const diastolic = parseInt(data.diastolic, 10);
+      const heart_rate = data.pulse ? parseInt(data.pulse, 10) : undefined;
+      await HealthReadingsRepository.saveBloodPressureReading({
+        user_id: user.id,
+        systolic,
+        diastolic,
+        heart_rate,
+        timestamp: data.time?.toISOString(),
+      });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Saved', 'Blood pressure reading saved successfully.');
+      setModalVisible(false);
+      await load();
+    } catch (e: any) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', e?.message || 'Failed to save blood pressure reading.');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -177,7 +219,7 @@ export default function BloodPressureDetailScreen() {
 
       <TouchableOpacity 
         style={styles.fab}
-        onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+        onPress={handleAdd}
       >
         <LinearGradient
           colors={['#2196F3', '#1976D2']}
@@ -186,6 +228,11 @@ export default function BloodPressureDetailScreen() {
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </LinearGradient>
       </TouchableOpacity>
+      <BloodPressureModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSave={handleSave}
+      />
     </View>
   );
 }

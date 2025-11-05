@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Dimensions, ViewStyle, TextStyle } from 'react-native';
-import Svg, { Line, Circle, Text as SvgText, G } from 'react-native-svg';
+import Svg, { Path, Line, Circle, Text as SvgText, G } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -148,7 +148,7 @@ export default function LineChart({
         {generateGridLines()}
 
         {/* Chart line */}
-        <Line
+        <Path
           d={pathData}
           stroke={color}
           strokeWidth={strokeWidth}

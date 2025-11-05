@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Dimensions, Platform, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialIcons, AntDesign } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 
@@ -43,9 +43,6 @@ export default function WelcomeScreen() {
     cb && cb();
   };
   const onContinueEmail = () => press(() => router.push('/screens/auth/signup/step1'));
-  const onContinueGoogle = () => press();
-  const onContinueApple = () => press();
-  const onContinuePhone = () => press();
   const onSignin = () => press(() => router.push('/screens/auth/login'));
   const onLearnMore = () => press();
 
@@ -141,23 +138,6 @@ export default function WelcomeScreen() {
           <Text className="text-gray-900 font-bold text-center">Continue with Email</Text>
         </TouchableOpacity>
 
-        {/* Social CTAs */}
-        <TouchableOpacity onPress={onContinueGoogle} className="rounded-full mt-3 flex-row items-center justify-center" style={{ backgroundColor: 'white', paddingVertical: 14 }}>
-          <AntDesign name="google" size={20} color="#DB4437" style={{ marginRight: 8 }} />
-          <Text className="text-gray-900 font-bold text-center">Continue with Google</Text>
-        </TouchableOpacity>
-
-        {Platform.OS === 'ios' && (
-          <TouchableOpacity onPress={onContinueApple} className="rounded-full mt-3 flex-row items-center justify-center" style={{ backgroundColor: 'black', paddingVertical: 14 }}>
-            <AntDesign name="apple" size={20} color="#fff" style={{ marginRight: 8 }} />
-            <Text className="text-white font-bold text-center">Continue with Apple</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity onPress={onContinuePhone} className="rounded-full mt-3 flex-row items-center justify-center" style={{ backgroundColor: '#4CAF50', paddingVertical: 14 }}>
-          <Ionicons name="call" size={20} color="#fff" style={{ marginRight: 8 }} />
-          <Text className="text-white font-bold text-center">Continue with Phone</Text>
-        </TouchableOpacity>
 
         {/* Secondary links */}
         <View className="flex-row justify-center mt-3" style={{ gap: 12 }}>

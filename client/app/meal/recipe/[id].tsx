@@ -13,22 +13,82 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { lowCarbRecipes, Recipe } from '../../../data/recipes/lowCarbRecipes';
+import { lowCarbRecipes, Recipe as LowCarbRecipe } from '../../../data/recipes/lowCarbRecipes';
+import { Recipe } from '../../../data/recipes';
+import { useAuth } from '../../../contexts/AuthContext';
+import { DatabaseService } from '../../../services/supabase/database';
+import { useTheme } from '../../../context/ThemeContext';
+import { NutritionCalculator } from '../../../services/nutrition/NutritionCalculator';
+import { useDispatch, useSelector } from 'react-redux';
+import { store, RootState } from '../../../store/store';
+import { getRecipeDetailsById } from '../../../store/slices/mealSlice';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function RecipeDetailScreen() {
+  const { isDarkMode, colors, gradients } = useTheme();
+  const { user } = useAuth();
   const { id } = useLocalSearchParams();
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const dispatch = useDispatch();
+  const { currentRecipeDetails, apiLoading } = useSelector((state: RootState) => state.meal);
+  const [recipe, setRecipe] = useState<Recipe | LowCarbRecipe | null>(null);
   const [activeTab, setActiveTab] = useState<'ingredients' | 'instructions'>('ingredients');
+  const [computedNutrition, setComputedNutrition] = useState<any>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   const fadeAnim = new Animated.Value(0);
   const slideAnim = new Animated.Value(50);
   const scaleAnim = new Animated.Value(0.9);
 
   useEffect(() => {
-    const foundRecipe = lowCarbRecipes.find(r => r.id === id);
-    setRecipe(foundRecipe || null);
+    const loadRecipe = async () => {
+      console.log('🔍 Loading recipe with ID:', id);
+      console.log('🔍 Type of ID:', typeof id);
+      
+      // First check local recipes
+      let foundRecipe = lowCarbRecipes.find(r => String(r.id) === String(id));
+      console.log('🔍 Found in local recipes:', !!foundRecipe);
+
+      if (!foundRecipe) {
+        // Check if it's in the online recipes from search results
+        const state = store.getState();
+        const online = (state?.meal?.onlineRecipes || []) as any[];
+        const match = online.find((r: any) => String(r.id) === String(id));
+        
+        if (match) {
+          // If we have basic info but no full details, fetch from API
+          const recipeId = Number(match.id);
+          if (!isNaN(recipeId) && (!match.ingredients || match.ingredients.length === 0)) {
+            setIsLoadingDetails(true);
+            await dispatch(getRecipeDetailsById(recipeId) as any);
+            setIsLoadingDetails(false);
+            return; // Recipe will be set from Redux state
+          }
+          foundRecipe = match as any;
+        } else {
+          // Try to fetch from API if it's a numeric ID
+          const recipeId = Number(id);
+          if (!isNaN(recipeId)) {
+            setIsLoadingDetails(true);
+            await dispatch(getRecipeDetailsById(recipeId) as any);
+            setIsLoadingDetails(false);
+            return; // Recipe will be set from Redux state
+          }
+        }
+      }
+
+      console.log('✅ Recipe loaded:', foundRecipe ? foundRecipe.name : 'NOT FOUND');
+      setRecipe(foundRecipe || null);
+      
+      // Compute nutrition from ingredients if available
+      if (foundRecipe && foundRecipe.ingredients && foundRecipe.ingredients.length > 0) {
+        const computed = NutritionCalculator.calculateRecipeNutrition(foundRecipe.ingredients);
+        const perServing = NutritionCalculator.calculatePerServing(computed, foundRecipe.servings);
+        setComputedNutrition(perServing);
+      }
+    };
+
+    loadRecipe();
 
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -49,12 +109,40 @@ export default function RecipeDetailScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [id]);
+  }, [id, dispatch]);
+
+  // Update recipe when API data is loaded
+  useEffect(() => {
+    if (currentRecipeDetails && String(currentRecipeDetails.id) === String(id)) {
+      setRecipe(currentRecipeDetails);
+      
+      // Compute nutrition from ingredients if available
+      if (currentRecipeDetails.ingredients && currentRecipeDetails.ingredients.length > 0) {
+        const computed = NutritionCalculator.calculateRecipeNutrition(currentRecipeDetails.ingredients);
+        const perServing = NutritionCalculator.calculatePerServing(computed, currentRecipeDetails.servings);
+        setComputedNutrition(perServing);
+      }
+    }
+  }, [currentRecipeDetails, id]);
+
+  if (isLoadingDetails || apiLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[{ color: colors.text, fontSize: 16 }]}>Loading recipe details...</Text>
+      </View>
+    );
+  }
 
   if (!recipe) {
     return (
-      <View style={styles.container}>
-        <Text>Recipe not found</Text>
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[{ color: colors.text, fontSize: 16 }]}>Recipe not found</Text>
+        <TouchableOpacity
+          style={{ marginTop: 20, padding: 10, backgroundColor: '#FF9800', borderRadius: 8 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: '#FFFFFF' }}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -79,14 +167,38 @@ export default function RecipeDetailScreen() {
   };
 
   const handleAddToMealPlan = async () => {
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // TODO: Implement add to meal plan functionality
-    console.log('Added to meal plan:', recipe.name);
+    if (!recipe) return;
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const { data: { user: current } } = await (await import('../../../services/supabase/config')).supabase.auth.getUser();
+      const userId = current?.id || user?.id;
+      if (!userId) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+      // Persist as a single-meal plan entry for today for now
+      const today = new Date();
+      const mealPlan: any = {
+        user_id: userId,
+        name: `${recipe.name} plan`,
+        description: 'Quick add from recipe detail',
+        duration: 1,
+        meals: [{ day: 1, meals: { lunch: { id: recipe.id, name: recipe.name } } }],
+        total_calories: recipe.nutrition.calories,
+        total_carbs: recipe.nutrition.carbs,
+        total_protein: recipe.nutrition.protein,
+        total_fat: recipe.nutrition.fat,
+      };
+      await DatabaseService.saveMealPlan(mealPlan);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
 
       {/* Hero Section */}
       <Animated.View
@@ -99,7 +211,7 @@ export default function RecipeDetailScreen() {
         ]}
       >
         <LinearGradient
-          colors={getCategoryColor() as [string, string, ...string[]]}
+          colors={isDarkMode ? (gradients.meal as [string, string, ...string[]]) : (getCategoryColor() as [string, string, ...string[]])}
           style={styles.heroGradient}
         >
           <TouchableOpacity
@@ -109,11 +221,11 @@ export default function RecipeDetailScreen() {
               router.back();
             }}
           >
-            <Ionicons name="chevron-back" size={24} color="#1F2937" />
+            <Ionicons name="chevron-back" size={24} color={isDarkMode ? '#FFFFFF' : '#1F2937'} />
           </TouchableOpacity>
 
           <View style={styles.heroContent}>
-            <Text style={styles.heroEmoji}>{recipe.image}</Text>
+            <Text style={styles.heroEmoji}>{(recipe as any).image || '🍽️'}</Text>
             <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor() }]}>
               <Text style={styles.difficultyText}>{recipe.difficulty}</Text>
             </View>
@@ -134,30 +246,30 @@ export default function RecipeDetailScreen() {
         >
           {/* Recipe Header */}
           <View style={styles.headerSection}>
-            <Text style={styles.recipeName}>{recipe.name}</Text>
-            <Text style={styles.recipeDescription}>{recipe.description}</Text>
+            <Text style={[styles.recipeName, { color: colors.text }]}>{recipe.name}</Text>
+            <Text style={[styles.recipeDescription, { color: colors.textSecondary }]}>{recipe.description}</Text>
 
             {/* Meta Info */}
             <View style={styles.metaContainer}>
               <View style={styles.metaItem}>
                 <Ionicons name="time-outline" size={20} color="#FF9800" />
-                <Text style={styles.metaText}>{recipe.prepTime + recipe.cookTime} min</Text>
+                <Text style={[styles.metaText, { color: colors.text }]}>{recipe.prepTime + recipe.cookTime} min</Text>
               </View>
               <View style={styles.metaItem}>
                 <Ionicons name="people-outline" size={20} color="#FF9800" />
-                <Text style={styles.metaText}>{recipe.servings} servings</Text>
+                <Text style={[styles.metaText, { color: colors.text }]}>{recipe.servings} servings</Text>
               </View>
               <View style={styles.metaItem}>
                 <Ionicons name="flame-outline" size={20} color="#FF9800" />
-                <Text style={styles.metaText}>{recipe.nutrition.calories} cal</Text>
+                <Text style={[styles.metaText, { color: colors.text }]}>{recipe.nutrition.calories} cal</Text>
               </View>
             </View>
 
             {/* Tags */}
             <View style={styles.tagsContainer}>
               {recipe.tags.map((tag, index) => (
-                <View key={index} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
+                <View key={index} style={[styles.tag, { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#FFF3E0' }]}>
+                  <Text style={[styles.tagText, { color: isDarkMode ? colors.text : '#FF9800' }]}>{tag}</Text>
                 </View>
               ))}
             </View>
@@ -165,34 +277,46 @@ export default function RecipeDetailScreen() {
 
           {/* Nutrition Card */}
           <View style={styles.nutritionSection}>
-            <Text style={styles.sectionTitle}>Nutrition Facts</Text>
-            <View style={styles.nutritionCard}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Nutrition Facts</Text>
+            <View style={[styles.nutritionCard, { backgroundColor: colors.surface }]}>
               <View style={styles.nutritionRow}>
                 <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>{recipe.nutrition.protein}g</Text>
-                  <Text style={styles.nutritionLabel}>Protein</Text>
+                  <Text style={[styles.nutritionValue, { color: colors.text }]}>
+                    {computedNutrition ? computedNutrition.protein : recipe.nutrition.protein}g
+                  </Text>
+                  <Text style={[styles.nutritionLabel, { color: colors.textSecondary }]}>Protein</Text>
                 </View>
                 <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>{recipe.nutrition.carbs}g</Text>
-                  <Text style={styles.nutritionLabel}>Carbs</Text>
+                  <Text style={[styles.nutritionValue, { color: colors.text }]}>
+                    {computedNutrition ? computedNutrition.carbs : recipe.nutrition.carbs}g
+                  </Text>
+                  <Text style={[styles.nutritionLabel, { color: colors.textSecondary }]}>Carbs</Text>
                 </View>
                 <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>{recipe.nutrition.fat}g</Text>
+                  <Text style={styles.nutritionValue}>
+                    {computedNutrition ? computedNutrition.fat : recipe.nutrition.fat}g
+                  </Text>
                   <Text style={styles.nutritionLabel}>Fat</Text>
                 </View>
               </View>
               <View style={styles.nutritionDivider} />
               <View style={styles.nutritionRow}>
                 <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>{recipe.nutrition.fiber}g</Text>
+                  <Text style={styles.nutritionValue}>
+                    {computedNutrition ? computedNutrition.fiber : recipe.nutrition.fiber}g
+                  </Text>
                   <Text style={styles.nutritionLabel}>Fiber</Text>
                 </View>
                 <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>{recipe.nutrition.sugar}g</Text>
+                  <Text style={styles.nutritionValue}>
+                    {computedNutrition ? computedNutrition.sugar : recipe.nutrition.sugar}g
+                  </Text>
                   <Text style={styles.nutritionLabel}>Sugar</Text>
                 </View>
                 <View style={styles.nutritionItem}>
-                  <Text style={styles.nutritionValue}>{recipe.nutrition.calories}</Text>
+                  <Text style={styles.nutritionValue}>
+                    {computedNutrition ? computedNutrition.calories : recipe.nutrition.calories}
+                  </Text>
                   <Text style={styles.nutritionLabel}>Calories</Text>
                 </View>
               </View>
@@ -228,26 +352,40 @@ export default function RecipeDetailScreen() {
           {/* Content */}
           {activeTab === 'ingredients' ? (
             <View style={styles.contentSection}>
-              {recipe.ingredients.map((ingredient, index) => (
-                <View key={index} style={styles.ingredientItem}>
-                  <View style={styles.ingredientDot} />
-                  <Text style={styles.ingredientText}>
-                    <Text style={styles.ingredientAmount}>{ingredient.amount}</Text>
-                    {' '}{ingredient.item}
-                  </Text>
-                </View>
-              ))}
+              {recipe.ingredients && recipe.ingredients.length > 0 ? (
+                recipe.ingredients.map((ingredient, index) => (
+                  <View key={index} style={styles.ingredientItem}>
+                    <View style={styles.ingredientDot} />
+                    <Text style={[styles.ingredientText, { color: colors.text }]}>
+                      <Text style={styles.ingredientAmount}>
+                        {ingredient.amount} {(ingredient as any).unit || ''}
+                      </Text>
+                      {' '}{(ingredient as any).name || (ingredient as any).item}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  No ingredients available
+                </Text>
+              )}
             </View>
           ) : (
             <View style={styles.contentSection}>
-              {recipe.instructions.map((instruction, index) => (
-                <View key={index} style={styles.instructionItem}>
-                  <View style={styles.instructionNumber}>
-                    <Text style={styles.instructionNumberText}>{index + 1}</Text>
+              {recipe.instructions && recipe.instructions.length > 0 ? (
+                recipe.instructions.map((instruction, index) => (
+                  <View key={index} style={styles.instructionItem}>
+                    <View style={styles.instructionNumber}>
+                      <Text style={styles.instructionNumberText}>{index + 1}</Text>
+                    </View>
+                    <Text style={[styles.instructionText, { color: colors.text }]}>{instruction}</Text>
                   </View>
-                  <Text style={styles.instructionText}>{instruction}</Text>
-                </View>
-              ))}
+                ))
+              ) : (
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  No instructions available
+                </Text>
+              )}
             </View>
           )}
 
@@ -485,6 +623,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1F2937',
     lineHeight: 24,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
   bottomBar: {
     position: 'absolute',

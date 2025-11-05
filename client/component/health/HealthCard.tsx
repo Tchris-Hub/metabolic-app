@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Card from '../ui/Card';
+import Card from '../ui/card';
 
 interface HealthCardProps {
   title: string;

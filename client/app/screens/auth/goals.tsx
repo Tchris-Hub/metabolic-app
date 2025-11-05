@@ -7,6 +7,8 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import SuccessScreen from '../../../component/ui/successscreen';
 import { useAuth } from '../../../contexts/AuthContext';
+import { UserProfileRepository } from '../../../services/supabase/repositories/UserProfileRepository';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -84,7 +86,7 @@ const HEALTH_GOALS = [
 ];
 
 export default function GoalsScreen() {
-  const { completeOnboarding } = useAuth();
+  const { user } = useAuth();
   const logoBreath = useRef(new Animated.Value(0)).current;
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
@@ -122,14 +124,56 @@ export default function GoalsScreen() {
 
   const continueToApp = async () => {
     if (!canContinue) return;
-    // TODO: Save goals to user profile
-    await completeOnboarding();
-    setIsCompleted(true);
+    
+    try {
+      if (!user) {
+        console.error('No user found');
+        return;
+      }
+
+      // Get profile data from AsyncStorage (saved in profile screen)
+      const profileDataString = await AsyncStorage.getItem('tempProfileData');
+      const profileData = profileDataString ? JSON.parse(profileDataString) : {};
+
+      // Save complete profile with goals to Supabase
+      await UserProfileRepository.upsertProfile({
+        user_id: user.id,
+        display_name: profileData.name || user?.email?.split('@')[0] || 'User',
+        age: profileData.age ? parseInt(profileData.age) : undefined,
+        gender: profileData.gender,
+        height: profileData.height ? parseFloat(profileData.height) : undefined,
+        weight: profileData.weight ? parseFloat(profileData.weight) : undefined,
+        activity_level: profileData.activityLevel,
+        health_conditions: profileData.healthConditions || [],
+        health_goals: selectedGoals,
+        reminder_preferences: {
+          bloodSugar: false,
+          medication: false,
+          exercise: false,
+          meals: false,
+        },
+      });
+
+      // Clear temp data
+      await AsyncStorage.removeItem('tempProfileData');
+
+      // CRITICAL: Mark onboarding as complete (like SQLite app does)
+      await AsyncStorage.setItem('onboardingComplete', 'true');
+      console.log('✅ Onboarding complete! User can now access main app.');
+
+      setIsCompleted(true);
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      // Still complete onboarding even if save fails
+      await AsyncStorage.setItem('onboardingComplete', 'true');
+      setIsCompleted(true);
+    }
   };
 
   const skipGoals = async () => {
     // Navigate to main app without goals
-    await completeOnboarding();
+    // Still mark onboarding as complete
+    await AsyncStorage.setItem('onboardingComplete', 'true');
     setIsCompleted(true);
   };
 

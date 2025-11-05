@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ViewStyle, TextStyle, ImageStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Card from '../ui/Card';
+import Card from '../ui/card';
 
 interface FoodItemProps {
   name: string;
@@ -56,7 +56,7 @@ export default function FoodItem({
     alignItems: 'center',
   });
 
-  const getImageStyle = (): ViewStyle => ({
+  const getImageStyle = (): ImageStyle => ({
     width: 60,
     height: 60,
     borderRadius: 8,

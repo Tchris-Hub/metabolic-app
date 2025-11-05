@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,58 +24,47 @@ interface Medication {
   dosage: string;
   frequency: string;
   withFood?: boolean;
+  instructions?: string | null;
+  times?: string[];
+}
+
+interface LoggedMedication {
+  id: string;
+  taken: boolean;
+  time: Date;
+  name: string;
+  dosage: string;
+  frequency: string;
+  withFood?: boolean;
+  instructions?: string | null;
+  times?: string[];
 }
 
 interface MedicationModalProps {
   visible: boolean;
   onClose: () => void;
+  medications: Medication[];
   onSave: (data: {
-    medications: { id: string; taken: boolean; time: Date }[];
+    medications: LoggedMedication[];
     time: Date;
     notes?: string;
   }) => void;
 }
 
-export default function MedicationModal({ visible, onClose, onSave }: MedicationModalProps) {
+type SelectionState = Record<string, 'taken' | 'skipped'>;
+
+// Map each selected medication to a specific intake time
+type MedTimesState = Record<string, Date>;
+
+export default function MedicationModal({ visible, onClose, medications, onSave }: MedicationModalProps) {
   const [time, setTime] = useState(new Date());
-  const [selectedMeds, setSelectedMeds] = useState<Set<string>>(new Set());
+  const [selection, setSelection] = useState<SelectionState>({});
+  const [medTimes, setMedTimes] = useState<MedTimesState>({});
   const [notes, setNotes] = useState('');
   
   const slideAnim = new Animated.Value(SCREEN_HEIGHT);
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.8);
-
-  // Sample medications - in real app, get from user profile
-  const medications: Medication[] = [
-    {
-      id: '1',
-      name: 'Metformin',
-      dosage: '500mg',
-      frequency: '2x daily',
-      withFood: true,
-    },
-    {
-      id: '2',
-      name: 'Lisinopril',
-      dosage: '10mg',
-      frequency: '1x daily',
-      withFood: false,
-    },
-    {
-      id: '3',
-      name: 'Atorvastatin',
-      dosage: '20mg',
-      frequency: '1x daily',
-      withFood: false,
-    },
-    {
-      id: '4',
-      name: 'Aspirin',
-      dosage: '81mg',
-      frequency: '1x daily',
-      withFood: true,
-    },
-  ];
 
   useEffect(() => {
     if (visible) {
@@ -110,19 +100,31 @@ export default function MedicationModal({ visible, onClose, onSave }: Medication
           useNativeDriver: true,
         }),
       ]).start();
+      resetState();
     }
   }, [visible]);
 
   const handleSave = async () => {
-    if (selectedMeds.size === 0) return;
+    const selectedEntries = Object.entries(selection).filter(([, status]) => !!status);
+    if (selectedEntries.length === 0) return;
     
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    const medicationData = Array.from(selectedMeds).map(medId => ({
-      id: medId,
-      taken: true,
-      time,
-    }));
+    const medicationData: LoggedMedication[] = selectedEntries.map(([medId, status]) => {
+      const med = medications.find((m) => m.id === medId);
+      const chosenTime = medTimes[medId] || time;
+      return {
+        id: medId,
+        taken: status === 'taken',
+        time: chosenTime,
+        name: med?.name || 'Medication',
+        dosage: med?.dosage || '',
+        frequency: med?.frequency || '',
+        withFood: med?.withFood,
+        instructions: med?.instructions,
+        times: med?.times,
+      };
+    });
     
     onSave({
       medications: medicationData,
@@ -131,26 +133,55 @@ export default function MedicationModal({ visible, onClose, onSave }: Medication
     });
     
     // Reset form
-    setSelectedMeds(new Set());
-    setNotes('');
-    setTime(new Date());
+    resetState();
     onClose();
   };
 
   const handleClose = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    resetState();
     onClose();
   };
 
   const toggleMedication = (medId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newSelected = new Set(selectedMeds);
-    if (newSelected.has(medId)) {
-      newSelected.delete(medId);
-    } else {
-      newSelected.add(medId);
-    }
-    setSelectedMeds(newSelected);
+    const med = medications.find(m => m.id === medId);
+    setSelection((prev) => {
+      const current = prev[medId];
+      let next: SelectionState[string] | undefined;
+      if (!current) {
+        next = 'taken';
+      } else if (current === 'taken') {
+        next = 'skipped';
+      } else {
+        next = undefined;
+      }
+      const updated = { ...prev };
+      if (!next) {
+        delete updated[medId];
+        setMedTimes((t) => {
+          const nt = { ...t };
+          delete nt[medId];
+          return nt;
+        });
+      } else {
+        updated[medId] = next;
+        if (next === 'taken') {
+          // Default time: first scheduled time today if available, else now
+          const defaultTime = (() => {
+            if (med?.times && med.times.length > 0) {
+              const [h, m] = med.times[0].split(':').map(Number);
+              const d = new Date();
+              d.setHours(h || 0, m || 0, 0, 0);
+              return d;
+            }
+            return new Date();
+          })();
+          setMedTimes((t) => ({ ...t, [medId]: defaultTime }));
+        }
+      }
+      return updated;
+    });
   };
 
   const formatTime = (date: Date) => {
@@ -160,6 +191,41 @@ export default function MedicationModal({ visible, onClose, onSave }: Medication
       hour12: true,
     });
   };
+
+  const parseTimeToToday = (timeStr: string): Date => {
+    const [h, m] = timeStr.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h || 0, m || 0, 0, 0);
+    return d;
+  };
+
+  const cycleMedTime = (medId: string) => {
+    const med = medications.find(m => m.id === medId);
+    const options: Date[] = [new Date(), ...((med?.times || []).map(parseTimeToToday))];
+    const cur = medTimes[medId];
+    // find next option by comparing hours+minutes
+    const idx = options.findIndex(o => cur && o.getHours() === cur.getHours() && o.getMinutes() === cur.getMinutes());
+    const next = options[(idx + 1) % options.length];
+    setMedTimes((t) => ({ ...t, [medId]: next }));
+  };
+
+  const resetState = () => {
+    setSelection({});
+    setMedTimes({});
+    setNotes('');
+    setTime(new Date());
+  };
+
+  useEffect(() => {
+    if (!visible) {
+      resetState();
+    }
+  }, [visible, medications]);
+
+  const selectedCount = useMemo(
+    () => Object.values(selection).filter((status) => !!status).length,
+    [selection]
+  );
 
   const getStreakInfo = () => {
     // Mock streak data - in real app, calculate from actual data
@@ -244,17 +310,21 @@ export default function MedicationModal({ visible, onClose, onSave }: Medication
                         key={med.id}
                         style={[
                           styles.medicationCard,
-                          selectedMeds.has(med.id) && styles.medicationCardSelected
+                          selection[med.id] === 'taken' && styles.medicationCardTaken,
+                          selection[med.id] === 'skipped' && styles.medicationCardSkipped
                         ]}
                         onPress={() => toggleMedication(med.id)}
                       >
                         <View style={styles.medicationLeft}>
                           <View style={[
                             styles.checkbox,
-                            selectedMeds.has(med.id) && styles.checkboxSelected
+                            selection[med.id] && styles.checkboxSelected
                           ]}>
-                            {selectedMeds.has(med.id) && (
+                            {selection[med.id] === 'taken' && (
                               <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                            )}
+                            {selection[med.id] === 'skipped' && (
+                              <Ionicons name="close" size={16} color="#FFFFFF" />
                             )}
                           </View>
                           <View style={styles.medicationInfo}>
@@ -262,21 +332,35 @@ export default function MedicationModal({ visible, onClose, onSave }: Medication
                             <Text style={styles.medicationDosage}>
                               {med.dosage} • {med.frequency}
                             </Text>
+                            {med.times && med.times.length > 0 && (
+                              <Text style={styles.medicationSchedule}>
+                                {med.times.join(' • ')}
+                              </Text>
+                            )}
                             {med.withFood && (
                               <View style={styles.foodBadge}>
                                 <Ionicons name="restaurant" size={12} color="#FF9800" />
                                 <Text style={styles.foodText}>Take with food</Text>
                               </View>
                             )}
+                            {med.instructions && med.instructions.length > 0 && (
+                              <Text style={styles.instructionsText}>{med.instructions}</Text>
+                            )}
                           </View>
                         </View>
                         
                         <View style={styles.medicationRight}>
-                          <Ionicons 
-                            name="medical" 
-                            size={20} 
-                            color={selectedMeds.has(med.id) ? '#FF9800' : '#D1D5DB'} 
-                          />
+                          {selection[med.id] && (
+                            <TouchableOpacity style={styles.timeChip} onPress={() => cycleMedTime(med.id)}>
+                              <Ionicons name="time" size={14} color="#FF9800" />
+                              <Text style={styles.timeChipText}>{formatTime(medTimes[med.id] || time)}</Text>
+                            </TouchableOpacity>
+                          )}
+                          <Text style={styles.statusLabel}>
+                            {selection[med.id] === 'taken' && 'Taken'}
+                            {selection[med.id] === 'skipped' && 'Skipped'}
+                            {!selection[med.id] && 'Tap to Log'}
+                          </Text>
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -316,8 +400,22 @@ export default function MedicationModal({ visible, onClose, onSave }: Medication
                   </View>
                 </View>
 
+                {/* Notes */}
+                <View style={styles.inputSection}>
+                  <Text style={styles.label}>Notes (Optional)</Text>
+                  <TextInput
+                    style={styles.notesInput}
+                    value={notes}
+                    onChangeText={setNotes}
+                    placeholder="Add any observations or side effects"
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
                 {/* Reminder for next dose */}
-                {selectedMeds.size > 0 && (
+                {selectedCount > 0 && (
                   <View style={styles.reminderSection}>
                     <View style={styles.reminderHeader}>
                       <Ionicons name="alarm" size={20} color="#FF9800" />
@@ -342,14 +440,14 @@ export default function MedicationModal({ visible, onClose, onSave }: Medication
                 <TouchableOpacity 
                   style={[
                     styles.saveButton,
-                    selectedMeds.size === 0 && styles.saveButtonDisabled
+                    selectedCount === 0 && styles.saveButtonDisabled
                   ]} 
                   onPress={handleSave}
-                  disabled={selectedMeds.size === 0}
+                  disabled={selectedCount === 0}
                 >
                   <Ionicons name="checkmark" size={20} color="#FFFFFF" />
                   <Text style={styles.saveText}>
-                    Log {selectedMeds.size} Medication{selectedMeds.size !== 1 ? 's' : ''}
+                    Log {selectedCount} Medication{selectedCount !== 1 ? 's' : ''}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -470,9 +568,13 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     padding: 16,
   },
-  medicationCardSelected: {
-    borderColor: '#FF9800',
-    backgroundColor: 'rgba(255, 152, 0, 0.05)',
+  medicationCardTaken: {
+    borderColor: '#4CAF50',
+    backgroundColor: 'rgba(76, 175, 80, 0.08)',
+  },
+  medicationCardSkipped: {
+    borderColor: '#F44336',
+    backgroundColor: 'rgba(244, 67, 54, 0.08)',
   },
   medicationLeft: {
     flexDirection: 'row',
@@ -506,6 +608,11 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
+  medicationSchedule: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
   foodBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -521,8 +628,34 @@ const styles = StyleSheet.create({
     color: '#FF9800',
     marginLeft: 4,
   },
+  instructionsText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
   medicationRight: {
     marginLeft: 12,
+    alignItems: 'flex-end',
+  },
+  timeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 152, 0, 0.12)',
+    borderRadius: 9999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  timeChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF9800',
+    marginLeft: 4,
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
   },
   timeButton: {
     flexDirection: 'row',
@@ -588,6 +721,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
+  },
+  notesInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#1F2937',
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   footer: {
     flexDirection: 'row',

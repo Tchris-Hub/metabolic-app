@@ -8,34 +8,70 @@ import {
   Animated,
   Dimensions,
   RefreshControl,
+  Image,
+  Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '../../context/ThemeContext';
 import { educationArticles, getFeaturedArticle } from '../../data/education/articles';
 import { healthQuizzes } from '../../data/education/quizzes';
 import LoadingScreen from '../../component/common/LoadingScreen';
+import { PersonalizedEducationService } from '../../services/PersonalizedEducationService';
+import { YouTubeService, YouTubeVideo } from '../../services/apis/YouTubeService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function LearnScreen() {
+  const { isDarkMode, colors, gradients } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const fadeAnim = new Animated.Value(0);
-  const slideAnim = new Animated.Value(30);
+  const [personalizedArticles, setPersonalizedArticles] = useState(educationArticles);
+  const [personalizedRecommendations, setPersonalizedRecommendations] = useState<string[]>([]);
+  const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
+  const [videosLoading, setVideosLoading] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(30));
 
-  const featuredArticle = getFeaturedArticle();
+  // Mock user profile for demonstration - in real app, this would come from Redux/auth
+  const mockUserProfile = {
+    goals: ['glucose control', 'weight management', 'better sleep'],
+    readings: {
+      bloodSugar: [120, 145, 135, 110, 150, 125, 140, 130],
+      bloodPressure: [
+        { systolic: 125, diastolic: 80 },
+        { systolic: 130, diastolic: 85 },
+        { systolic: 128, diastolic: 82 }
+      ],
+      weight: [75, 74.5, 74, 73.8, 74.2]
+    },
+    preferences: {
+      dietType: 'low-carb',
+      activityLevel: 'moderate',
+      conditions: ['diabetes', 'hypertension']
+    }
+  };
 
-  const categories = [
-    { id: 'diabetes', name: 'Understanding Diabetes', icon: '📚', color: '#E91E63', articles: 2 },
-    { id: 'hypertension', name: 'Managing Hypertension', icon: '❤️', color: '#2196F3', articles: 1 },
-    { id: 'nutrition', name: 'Nutrition Basics', icon: '🥗', color: '#4CAF50', articles: 1 },
-    { id: 'exercise', name: 'Exercise Guide', icon: '🏃', color: '#FF9800', articles: 1 },
-    { id: 'emergency', name: 'Emergency Info', icon: '🚨', color: '#F44336', articles: 1 },
-  ];
+  useEffect(() => {
+    loadPersonalizedContent();
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   useEffect(() => {
     // Simulate loading education content
@@ -60,25 +96,76 @@ export default function LearnScreen() {
     ]).start();
   }, []);
 
+  const loadYouTubeVideos = async () => {
+    try {
+      console.log('📺 Loading YouTube videos...');
+      setVideosLoading(true);
+      
+      // Load diabetes-related educational videos
+      const videos = await YouTubeService.getHealthVideos('diabetes');
+      console.log('✅ Loaded YouTube videos:', videos.length);
+      
+      setYoutubeVideos(videos);
+      setVideosLoading(false);
+    } catch (error) {
+      console.error('❌ Failed to load YouTube videos:', error);
+      setVideosLoading(false);
+    }
+  };
+
+  const loadPersonalizedContent = async () => {
+    try {
+      // Generate personalized articles based on user profile
+      const personalizedArticles = PersonalizedEducationService.generatePersonalizedArticles(mockUserProfile);
+
+      const recommendations = PersonalizedEducationService.getPersonalizedRecommendations(mockUserProfile);
+
+      setPersonalizedArticles(personalizedArticles.length > 0 ? personalizedArticles : educationArticles);
+      setPersonalizedRecommendations(recommendations);
+
+      // Load YouTube videos
+      loadYouTubeVideos();
+
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading personalized content:', error);
+      setPersonalizedArticles(educationArticles);
+      setLoading(false);
+    }
+  };
+
+  // Show loading screen while content is being loaded
+  if (loading) {
+    return <LoadingScreen message="Personalizing your learning experience..." />;
+  }
+
+  // Get featured article from personalized content
+  const featuredArticle = personalizedArticles[0] || getFeaturedArticle();
+
+  const categories = [
+    { id: 'diabetes', name: 'Understanding Diabetes', icon: '📚', color: '#E91E63', articles: educationArticles.filter(a => a.category === 'diabetes').length },
+    { id: 'hypertension', name: 'Managing Hypertension', icon: '❤️', color: '#2196F3', articles: educationArticles.filter(a => a.category === 'hypertension').length },
+    { id: 'nutrition', name: 'Nutrition Basics', icon: '🥗', color: '#4CAF50', articles: educationArticles.filter(a => a.category === 'nutrition').length },
+    { id: 'exercise', name: 'Exercise Guide', icon: '🏃', color: '#FF9800', articles: educationArticles.filter(a => a.category === 'exercise').length },
+    { id: 'emergency', name: 'Emergency Info', icon: '🚨', color: '#F44336', articles: educationArticles.filter(a => a.category === 'emergency').length },
+  ];
+
   const onRefresh = async () => {
     setRefreshing(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    // Simulate refreshing education content
+
+    await loadPersonalizedContent();
+
     setTimeout(() => {
       setRefreshing(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }, 2000);
   };
 
-  // Show loading screen while content is being loaded
-  if (loading) {
-    return <LoadingScreen message="Loading health education..." />;
-  }
-
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
 
       <ScrollView
         style={styles.scrollView}
@@ -88,14 +175,14 @@ export default function LearnScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#9C27B0"
-            colors={['#9C27B0']}
+            tintColor={isDarkMode ? '#A78BFA' : '#9C27B0'}
+            colors={[isDarkMode ? '#A78BFA' : '#9C27B0']}
           />
         }
       >
         {/* Hero Header */}
         <LinearGradient
-          colors={['#9C27B0', '#7B1FA2']}
+          colors={gradients.learn as [string, string, ...string[]]}
           style={styles.heroSection}
         >
           <Animated.View
@@ -137,13 +224,13 @@ export default function LearnScreen() {
         {/* Featured Article */}
         <View style={styles.featuredSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Article</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Featured Article</Text>
             <View style={styles.featuredBadge}>
               <Text style={styles.featuredBadgeText}>NEW</Text>
             </View>
           </View>
           <TouchableOpacity
-            style={styles.featuredCard}
+            style={[styles.featuredCard, { backgroundColor: colors.surface }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               router.push(`/learn/article/${featuredArticle.id}` as any);
@@ -153,18 +240,18 @@ export default function LearnScreen() {
             <View style={styles.featuredContent}>
               <Text style={styles.featuredEmoji}>{featuredArticle.image}</Text>
               <View style={styles.featuredTextContent}>
-                <Text style={styles.featuredTitle} numberOfLines={2}>{featuredArticle.title}</Text>
-                <Text style={styles.featuredSummary} numberOfLines={2}>
+                <Text style={[styles.featuredTitle, { color: colors.text }]} numberOfLines={2}>{featuredArticle.title}</Text>
+                <Text style={[styles.featuredSummary, { color: colors.textSecondary }]} numberOfLines={2}>
                   {featuredArticle.summary}
                 </Text>
                 <View style={styles.featuredMeta}>
                   <View style={styles.metaItem}>
-                    <Ionicons name="time-outline" size={14} color="#9C27B0" />
-                    <Text style={styles.metaText}>{featuredArticle.readTime} min</Text>
+                    <Ionicons name="time-outline" size={14} color={isDarkMode ? '#C084FC' : '#9C27B0'} />
+                    <Text style={[styles.metaText, { color: isDarkMode ? '#C084FC' : '#9C27B0' }]}>{featuredArticle.readTime} min</Text>
                   </View>
                   <View style={styles.metaItem}>
-                    <Ionicons name="bar-chart-outline" size={14} color="#9C27B0" />
-                    <Text style={styles.metaText}>{featuredArticle.difficulty}</Text>
+                    <Ionicons name="bar-chart-outline" size={14} color={isDarkMode ? '#C084FC' : '#9C27B0'} />
+                    <Text style={[styles.metaText, { color: isDarkMode ? '#C084FC' : '#9C27B0' }]}>{featuredArticle.difficulty}</Text>
                   </View>
                 </View>
               </View>
@@ -174,7 +261,7 @@ export default function LearnScreen() {
 
         {/* Categories Grid */}
         <View style={styles.categoriesSection}>
-          <Text style={styles.sectionTitle}>Health Topics</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Health Topics</Text>
           <View style={styles.categoriesGrid}>
             {categories.map((category, index) => (
               <Animated.View
@@ -193,7 +280,7 @@ export default function LearnScreen() {
                 ]}
               >
                 <TouchableOpacity
-                  style={styles.categoryCard}
+                  style={[styles.categoryCard, { backgroundColor: colors.surface }]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     router.push(`/learn/category/${category.id}` as any);
@@ -203,8 +290,8 @@ export default function LearnScreen() {
                   <View style={[styles.categoryIconWrapper, { backgroundColor: `${category.color}20` }]}>
                     <Text style={styles.categoryEmoji}>{category.icon}</Text>
                   </View>
-                  <Text style={styles.categoryName} numberOfLines={2}>{category.name}</Text>
-                  <Text style={styles.categoryCount}>{category.articles} articles</Text>
+                  <Text style={[styles.categoryName, { color: colors.text }]} numberOfLines={2}>{category.name}</Text>
+                  <Text style={[styles.categoryCount, { color: colors.textSecondary }]}>{category.articles} articles</Text>
                   <View style={[styles.categoryArrow, { backgroundColor: `${category.color}` }]}>
                     <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
                   </View>
@@ -217,7 +304,7 @@ export default function LearnScreen() {
         {/* Interactive Quizzes */}
         <View style={styles.quizzesSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Test Your Knowledge</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Test Your Knowledge</Text>
             <TouchableOpacity>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
@@ -225,7 +312,7 @@ export default function LearnScreen() {
           {healthQuizzes.slice(0, 2).map((quiz, index) => (
             <TouchableOpacity
               key={quiz.id}
-              style={styles.quizCard}
+              style={[styles.quizCard, { backgroundColor: colors.surface }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 router.push(`/learn/quiz/${quiz.id}` as any);
@@ -253,8 +340,87 @@ export default function LearnScreen() {
           ))}
         </View>
 
+        {/* YouTube Educational Videos */}
+        {youtubeVideos.length > 0 && (
+          <View style={styles.videosSection}>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="logo-youtube" size={24} color="#FF0000" />
+                <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Video Tutorials</Text>
+              </View>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
+            >
+              {youtubeVideos.slice(0, 10).map((video, index) => (
+                <TouchableOpacity
+                  key={video.id}
+                  style={[styles.videoCard, { backgroundColor: colors.surface }]}
+                  onPress={async () => {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    const url = YouTubeService.getWatchUrl(video.id);
+                    Linking.openURL(url);
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <Image
+                    source={{ uri: video.thumbnail }}
+                    style={styles.videoThumbnail}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.videoOverlay}>
+                    <View style={styles.playButton}>
+                      <Ionicons name="play" size={24} color="#FFFFFF" />
+                    </View>
+                  </View>
+                  {video.duration && (
+                    <View style={styles.videoDuration}>
+                      <Text style={styles.videoDurationText}>{video.duration}</Text>
+                    </View>
+                  )}
+                  <View style={styles.videoInfo}>
+                    <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>
+                      {video.title}
+                    </Text>
+                    <Text style={[styles.videoChannel, { color: colors.textSecondary }]} numberOfLines={1}>
+                      {video.channelTitle}
+                    </Text>
+                    {video.viewCount && (
+                      <View style={styles.videoMeta}>
+                        <Ionicons name="eye-outline" size={12} color={colors.textSecondary} />
+                        <Text style={[styles.videoMetaText, { color: colors.textSecondary }]}>
+                          {video.viewCount} views
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Floating Action Button - Gamification Quiz */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push('/learn/quiz' as any);
+        }}
+        activeOpacity={0.9}
+      >
+        <LinearGradient
+          colors={['#9C27B0', '#7B1FA2']}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="game-controller" size={24} color="#FFFFFF" />
+        </LinearGradient>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -541,5 +707,102 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  // FAB
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    shadowColor: '#9C27B0',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fabGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // YouTube Videos Section
+  videosSection: {
+    paddingVertical: 24,
+  },
+  videoCard: {
+    width: 280,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  videoThumbnail: {
+    width: '100%',
+    height: 160,
+    backgroundColor: '#E5E7EB',
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 160,
+  },
+  playButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  videoDuration: {
+    position: 'absolute',
+    bottom: 76,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  videoDurationText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  videoInfo: {
+    padding: 12,
+  },
+  videoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  videoChannel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  videoMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  videoMetaText: {
+    fontSize: 11,
+    color: '#9CA3AF',
   },
 });

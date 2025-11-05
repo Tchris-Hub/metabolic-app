@@ -1,11 +1,12 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Dimensions, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Dimensions, Animated, Keyboard, TouchableWithoutFeedback, ScrollView, KeyboardAvoidingView, Platform, Alert, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../../../../contexts/AuthContext';
+import * as WebBrowser from 'expo-web-browser';
 
 const { width: W } = Dimensions.get('window');
 
@@ -20,7 +21,7 @@ function getStrength(pw: string) {
 }
 
 export default function SignUpStep1() {
-  const { signup, isLoading } = useAuth();
+  const { signup, isLoading, googleSignIn } = useAuth();
   const logoBreath = useRef(new Animated.Value(0)).current;
   React.useEffect(() => {
     Animated.loop(
@@ -53,40 +54,95 @@ export default function SignUpStep1() {
     if (!canContinue) return;
     try {
       await signup(email, password, email.split('@')[0]);
-      // After signup, user will be redirected to profile setup automatically
+      
+      // Always go to profile setup after signup
       router.replace('/screens/auth/profile');
     } catch (error) {
       console.error('Signup failed:', error);
-      // TODO: Show error message to user
+      
+      // Show user-friendly error message
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Email rate limit exceeded')) {
+          errorMessage = 'Too many signup attempts. Please wait a few minutes and try again.';
+        } else if (error.message.includes('User already registered')) {
+          errorMessage = 'This email is already registered. Please log in instead.';
+        } else if (error.message.includes('invalid') || error.message.includes('Invalid')) {
+          errorMessage = 'Invalid email address. Please check for typos (e.g., use gmail.com not gail.com)';
+        } else if (error.message.includes('Password')) {
+          errorMessage = 'Password must be at least 8 characters with letters, numbers, and symbols.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your internet connection.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      Alert.alert('Signup Failed', errorMessage, [{ text: 'OK' }]);
     }
   };
 
   return (
-    <View className="flex-1">
-      <StatusBar style="light" />
-      <ExpoLinearGradient
-        colors={[ '#2196F3', '#4CAF50' ] as [string, string, ...string[]]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ position: 'absolute', inset: 0 as any }}
-      />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1"
+      >
+        <View className="flex-1">
+          <StatusBar style="light" />
+          <ExpoLinearGradient
+            colors={[ '#2196F3', '#4CAF50' ] as [string, string, ...string[]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ position: 'absolute', inset: 0 as any }}
+          />
 
-      {/* Header with centered logo */}
-      <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
-        <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/welcome-screen'))} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
-          <Ionicons name="chevron-back" size={20} color="#fff" />
-        </TouchableOpacity>
-        <View style={{ alignItems: 'center' }}>
-          <Animated.View style={[{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 8 }, Breath(logoBreath)]}>
-            <Ionicons name="medical" size={36} color="#4CAF50" />
-          </Animated.View>
-          <Text className="text-white text-lg font-extrabold mt-4">Create your secure account</Text>
-        </View>
-      </View>
+          {/* Header with centered logo */}
+          <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
+            <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/welcome-screen'))} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
+              <Ionicons name="chevron-back" size={20} color="#fff" />
+            </TouchableOpacity>
+            <View style={{ alignItems: 'center' }}>
+              <Animated.View style={[{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 8 }, Breath(logoBreath)]}>
+                <Ionicons name="medical" size={36} color="#4CAF50" />
+              </Animated.View>
+              <Text className="text-white text-lg font-extrabold mt-4">Create your secure account</Text>
+            </View>
+          </View>
 
-      
+          <ScrollView 
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 40 }}
+          >
+            <View style={{ marginTop: 24, paddingHorizontal: 20 }}>
+              {/* OAuth options */}
+              <TouchableOpacity
+                onPress={async () => {
+                  press(async () => {
+                    try {
+                      const url = await googleSignIn();
+                      if (url) {
+                        const result = await WebBrowser.openAuthSessionAsync(url, 'client://auth/callback');
+                        if (result.type !== 'success') {
+                          console.log('Google sign-in cancelled or dismissed', result);
+                        }
+                      } else {
+                        Alert.alert('Google Sign-Up', 'Unable to start Google sign-in flow.');
+                      }
+                    } catch (e) {
+                      console.error(e);
+                      Alert.alert('Google Sign-In Failed', 'Please try again.');
+                    }
+                  });
+                }}
+                style={{ backgroundColor: 'white', paddingVertical: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Ionicons name="logo-google" size={18} color="#DB4437" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#111827', fontWeight: '600' }}>Continue with Google</Text>
+              </TouchableOpacity>
 
-      <View style={{ marginTop: 24, paddingHorizontal: 20 }}>
+              <View style={{ height: 16 }} />
         {/* Email */}
         <Text className="text-white/90 mb-2">Email address</Text>
         <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
@@ -146,12 +202,22 @@ export default function SignUpStep1() {
         </View>
         <Text className="text-white/70 text-xs mt-1">{match || confirm.length === 0 ? ' ' : 'Passwords do not match.'}</Text>
 
-        {/* Continue */}
-        <TouchableOpacity disabled={!canContinue} onPress={() => press(goNext)} className="rounded-full mt-6" style={{ backgroundColor: canContinue ? 'white' : 'rgba(255,255,255,0.4)', paddingVertical: 14 }}>
-          <Text className="text-center font-bold" style={{ color: canContinue ? '#111827' : '#374151' }}>Continue</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+              {/* Continue */}
+              <TouchableOpacity 
+                disabled={!canContinue || isLoading} 
+                onPress={() => press(goNext)} 
+                className="rounded-full mt-6" 
+                style={{ backgroundColor: canContinue ? 'white' : 'rgba(255,255,255,0.4)', paddingVertical: 14 }}
+              >
+                <Text className="text-center font-bold" style={{ color: canContinue ? '#111827' : '#374151' }}>
+                  {isLoading ? 'Creating Account...' : 'Continue'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 

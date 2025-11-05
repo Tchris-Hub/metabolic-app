@@ -103,7 +103,7 @@ export default function VerificationScreen() {
 
       {/* Header with centered logo */}
       <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
-        <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/signup/step2'))} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
+        <TouchableOpacity onPress={() => press(() => router.back())} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
@@ -141,7 +141,7 @@ export default function VerificationScreen() {
           <TouchableOpacity onPress={resend} disabled={cooldown > 0}>
             <Text className={`underline ${cooldown > 0 ? 'text-white/60' : 'text-white'}`}>Resend code{cooldown > 0 ? ` (${cooldown}s)` : ''}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/signup/step2'))}>
+          <TouchableOpacity onPress={() => press(() => router.back())}>
             <Text className="text-white underline">Change email</Text>
           </TouchableOpacity>
         </View>

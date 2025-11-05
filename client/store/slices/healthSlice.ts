@@ -1,11 +1,11 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { DatabaseService, HealthReading } from '../../services/firebase/database';
+import { DatabaseService, HealthReading } from '../../services/supabase/database';
 
 interface HealthState {
   readings: HealthReading[];
   isLoading: boolean;
   error: string | null;
-  lastSync: Date | null;
+  lastSync: string | null;
   bloodSugarReadings: HealthReading[];
   bloodPressureReadings: HealthReading[];
   weightReadings: HealthReading[];
@@ -92,7 +92,7 @@ export const syncHealthData = createAsyncThunk(
         bloodPressure,
         weight,
         activity,
-        lastSync: new Date(),
+        lastSync: new Date().toISOString(),
       };
     } catch (error) {
       return rejectWithValue(error as string);

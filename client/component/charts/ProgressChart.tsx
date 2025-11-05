@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Dimensions, ViewStyle, TextStyle } from 'react-native';
 import Svg, { Circle, Text as SvgText } from 'react-native-svg';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedProps, withTiming, interpolate } from 'react-native-reanimated';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -48,7 +50,7 @@ export default function ProgressChart({
     }
   }, [progress, animated, duration, animatedProgress]);
 
-  const animatedStyle = useAnimatedStyle(() => {
+  const animatedProps = useAnimatedProps(() => {
     const strokeDashoffset = interpolate(
       animatedProgress.value,
       [0, 100],
@@ -111,20 +113,18 @@ export default function ProgressChart({
           />
           
           {/* Progress circle */}
-          <Animated.View style={animatedStyle}>
-            <Circle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              stroke={color}
-              strokeWidth={strokeWidth}
-              fill="transparent"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference}
-              strokeLinecap="round"
-              transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            />
-          </Animated.View>
+          <AnimatedCircle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            animatedProps={animatedProps}
+          />
         </Svg>
 
         {/* Center content */}
@@ -132,7 +132,7 @@ export default function ProgressChart({
           {showValue && value !== undefined && (
             <Text style={getValueStyle()}>
               {value}
-              {unit && <Text style={getUnitStyle()}>{unit}</Text>}
+              {unit && <Text style={getUnitStyle()}> {unit}</Text>}
             </Text>
           )}
           

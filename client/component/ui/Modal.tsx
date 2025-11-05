@@ -76,30 +76,30 @@ export default function Modal({
   }, [visible, animationType, slideAnim, fadeAnim]);
 
   const getModalSize = (): ViewStyle => {
-    const sizeStyles = {
+    const sizeStyles: Record<string, ViewStyle> = {
       small: { 
         maxHeight: SCREEN_HEIGHT * 0.4,
-        width: '80%',
+        width: '80%' as any,
         borderRadius: 16,
       },
       medium: { 
         maxHeight: SCREEN_HEIGHT * 0.7,
-        width: '90%',
+        width: '90%' as any,
         borderRadius: 20,
       },
       large: { 
         maxHeight: SCREEN_HEIGHT * 0.9,
-        width: '95%',
+        width: '95%' as any,
         borderRadius: 24,
       },
       fullscreen: { 
         height: SCREEN_HEIGHT,
-        width: '100%',
+        width: '100%' as any,
         borderRadius: 0,
       },
     };
 
-    return sizeStyles[size];
+    return sizeStyles[size] || sizeStyles.medium;
   };
 
   const getContainerStyle = (): ViewStyle => ({

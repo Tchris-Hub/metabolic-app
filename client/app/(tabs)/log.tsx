@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -30,6 +31,7 @@ interface CategoryCard {
 }
 
 export default function LogScreen() {
+  const { isDarkMode, colors, gradients } = useTheme();
   const [categories] = useState<CategoryCard[]>([
     {
       id: '1',
@@ -151,8 +153,8 @@ export default function LogScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
 
       <ScrollView 
         style={styles.scrollView}
@@ -161,15 +163,15 @@ export default function LogScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#2196F3"
-            colors={['#2196F3']}
+            tintColor={isDarkMode ? '#60A5FA' : '#2196F3'}
+            colors={[isDarkMode ? '#60A5FA' : '#2196F3']}
           />
         }
         contentContainerStyle={styles.scrollContent}
       >
         {/* Hero Header */}
         <LinearGradient
-          colors={['#2196F3', '#1976D2']}
+          colors={gradients.log as [string, string, ...string[]]}
           style={styles.heroSection}
         >
           <Animated.View
@@ -211,7 +213,7 @@ export default function LogScreen() {
         {/* Health Metrics Grid */}
         <View style={styles.metricsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Health Metrics</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Health Metrics</Text>
             <TouchableOpacity
               onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
             >
@@ -237,18 +239,18 @@ export default function LogScreen() {
                 ]}
               >
                 <TouchableOpacity
-                  style={styles.metricCard}
+                  style={[styles.metricCard, { backgroundColor: colors.surface }]}
                   onPress={() => handleCategoryPress(category, category.id)}
                   activeOpacity={0.9}
                 >
                   <View style={[styles.metricIconWrapper, { backgroundColor: `${category.color}20` }]}>
                     {renderIcon(category)}
                   </View>
-                  <Text style={styles.metricTitle} numberOfLines={2}>{category.title}</Text>
-                  <Text style={styles.metricValue}>{category.lastReading}</Text>
+                  <Text style={[styles.metricTitle, { color: colors.text }]} numberOfLines={2}>{category.title}</Text>
+                  <Text style={[styles.metricValue, { color: colors.text }]}>{category.lastReading}</Text>
                   <View style={styles.metricStatus}>
                     <View style={[styles.statusDot, { backgroundColor: category.color }]} />
-                    <Text style={styles.metricStatusText} numberOfLines={1}>{category.status.split('•')[0].trim()}</Text>
+                    <Text style={[styles.metricStatusText, { color: colors.textSecondary }]} numberOfLines={1}>{category.status.split('•')[0].trim()}</Text>
                   </View>
                 </TouchableOpacity>
               </Animated.View>
@@ -258,16 +260,13 @@ export default function LogScreen() {
 
         {/* Insights Card */}
         <View style={styles.insightsSection}>
-          <Text style={styles.sectionTitle}>Weekly Insights</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Weekly Insights</Text>
           <TouchableOpacity
             style={styles.insightCard}
             onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
             activeOpacity={0.9}
           >
-            <LinearGradient
-              colors={['#F0FDF4', '#FFFFFF']}
-              style={styles.insightGradient}
-            >
+            <View style={[styles.insightGradient, { backgroundColor: colors.surface }]}>
               <View style={styles.insightHeader}>
                 <View style={styles.insightIconWrapper}>
                   <Ionicons name="trending-up" size={28} color="#4CAF50" />
@@ -276,13 +275,13 @@ export default function LogScreen() {
                   <Text style={styles.insightBadgeText}>Great!</Text>
                 </View>
               </View>
-              <Text style={styles.insightTitle}>You're doing amazing!</Text>
-              <Text style={styles.insightText}>Your consistency is 92% this week. Keep up the great work tracking your health metrics.</Text>
+              <Text style={[styles.insightTitle, { color: colors.text }]}>You're doing amazing!</Text>
+              <Text style={[styles.insightText, { color: colors.textSecondary }]}>Your consistency is 92% this week. Keep up the great work tracking your health metrics.</Text>
               <View style={styles.insightFooter}>
                 <Text style={styles.insightLink}>View detailed report</Text>
                 <Ionicons name="arrow-forward" size={16} color="#2196F3" />
               </View>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </View>
 

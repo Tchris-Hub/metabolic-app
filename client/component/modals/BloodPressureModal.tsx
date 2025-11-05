@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -30,6 +31,7 @@ interface BloodPressureModalProps {
 }
 
 export default function BloodPressureModal({ visible, onClose, onSave }: BloodPressureModalProps) {
+  const { isDarkMode, colors } = useTheme();
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
   const [pulse, setPulse] = useState('');
@@ -152,6 +154,7 @@ export default function BloodPressureModal({ visible, onClose, onSave }: BloodPr
           <Animated.View
             style={[
               styles.modalContainer,
+              { backgroundColor: colors.surface },
               {
                 transform: [
                   { translateY: slideAnim },
@@ -160,20 +163,17 @@ export default function BloodPressureModal({ visible, onClose, onSave }: BloodPr
               }
             ]}
           >
-            <LinearGradient
-              colors={['#E3F2FD', '#FFFFFF']}
-              style={styles.modalGradient}
-            >
+            <View style={styles.modalGradient}>
               {/* Header */}
-              <View style={styles.header}>
+              <View style={[styles.header, { borderBottomColor: colors.border }]}>
                 <View style={styles.headerLeft}>
                   <View style={styles.iconContainer}>
                     <Ionicons name="heart" size={24} color="#2196F3" />
                   </View>
-                  <Text style={styles.title}>Log Blood Pressure</Text>
+                  <Text style={[styles.title, { color: colors.text }]}>Log Blood Pressure</Text>
                 </View>
                 <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color="#6B7280" />
+                  <Ionicons name="close" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -181,35 +181,35 @@ export default function BloodPressureModal({ visible, onClose, onSave }: BloodPr
               <View style={styles.content}>
                 {/* BP Input */}
                 <View style={styles.inputSection}>
-                  <Text style={styles.label}>Blood Pressure Reading</Text>
+                  <Text style={[styles.label, { color: colors.text }]}>Blood Pressure Reading</Text>
                   <View style={styles.bpContainer}>
-                    <View style={styles.bpInputContainer}>
+                    <View style={[styles.bpInputContainer, { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F9FAFB', borderColor: colors.border }]}>
                       <TextInput
-                        style={styles.bpInput}
+                        style={[styles.bpInput, { color: colors.text }]}
                         value={systolic}
                         onChangeText={setSystolic}
                         placeholder="120"
                         keyboardType="numeric"
-                        placeholderTextColor="#9CA3AF"
+                        placeholderTextColor={colors.textTertiary}
                       />
-                      <Text style={styles.bpLabel}>Systolic</Text>
+                      <Text style={[styles.bpLabel, { color: colors.textSecondary }]}>Systolic</Text>
                     </View>
                     
-                    <Text style={styles.bpSeparator}>/</Text>
+                    <Text style={[styles.bpSeparator, { color: colors.text }]}>/</Text>
                     
-                    <View style={styles.bpInputContainer}>
+                    <View style={[styles.bpInputContainer, { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F9FAFB', borderColor: colors.border }]}>
                       <TextInput
-                        style={styles.bpInput}
+                        style={[styles.bpInput, { color: colors.text }]}
                         value={diastolic}
                         onChangeText={setDiastolic}
                         placeholder="80"
                         keyboardType="numeric"
-                        placeholderTextColor="#9CA3AF"
+                        placeholderTextColor={colors.textTertiary}
                       />
-                      <Text style={styles.bpLabel}>Diastolic</Text>
+                      <Text style={[styles.bpLabel, { color: colors.textSecondary }]}>Diastolic</Text>
                     </View>
                     
-                    <Text style={styles.unit}>mmHg</Text>
+                    <Text style={[styles.unit, { color: colors.textSecondary }]}>mmHg</Text>
                   </View>
                   
                   {category && (
@@ -218,13 +218,13 @@ export default function BloodPressureModal({ visible, onClose, onSave }: BloodPr
                     </View>
                   )}
                   
-                  <Text style={styles.reference}>Normal: &lt;120/&lt;80 mmHg</Text>
+                  <Text style={[styles.reference, { color: colors.textSecondary }]}>Normal: &lt;120/&lt;80 mmHg</Text>
                 </View>
 
                 {/* Pulse Input */}
                 <View style={styles.inputSection}>
-                  <Text style={styles.label}>Pulse Rate (Optional)</Text>
-                  <View style={styles.inputContainer}>
+                  <Text style={[styles.label, { color: colors.text }]}>Pulse Rate (Optional)</Text>
+                  <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F9FAFB', borderColor: colors.border }]}>
                     <TextInput
                       style={styles.input}
                       value={pulse}
@@ -301,7 +301,7 @@ export default function BloodPressureModal({ visible, onClose, onSave }: BloodPr
                   <Text style={styles.saveText}>Save Reading</Text>
                 </TouchableOpacity>
               </View>
-            </LinearGradient>
+            </View>
           </Animated.View>
         </KeyboardAvoidingView>
       </Animated.View>

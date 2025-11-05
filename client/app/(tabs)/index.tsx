@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -8,33 +8,54 @@ import {
   Dimensions,
   Image,
   Animated,
-  RefreshControl
+  RefreshControl,
+  ActivityIndicator
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '../../contexts/AuthContext';
+import { HealthReadingsRepository } from '../../services/supabase/repositories/HealthReadingsRepository';
+import { UserProfileRepository } from '../../services/supabase/repositories/UserProfileRepository';
+import { useTheme } from '../../context/ThemeContext';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../../store/store';
+import { getRandomRecipesOnline } from '../../store/slices/mealSlice';
+import { router } from 'expo-router';
+import { lowCarbRecipes } from '../../data/recipes/lowCarbRecipes';
 
 // Import modals
 import BloodSugarModal from '../../component/modals/BloodSugarModal';
 import BloodPressureModal from '../../component/modals/BloodPressureModal';
 import WeightModal from '../../component/modals/WeightModal';
 import MedicationModal from '../../component/modals/MedicationModal';
+import { MedicationRepository, MedicationRecord } from '../../services/supabase/repositories/MedicationRepository';
 import LoadingScreen from '../../component/common/LoadingScreen';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2; // 16px padding + 16px gap
 
 export default function HomeScreen() {
+  const { user } = useAuth();
+  const { isDarkMode, colors, gradients } = useTheme();
+  const dispatch = useDispatch();
+  const { onlineRecipes, apiLoading } = useSelector((state: RootState) => state.meal);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [healthScore] = useState(78);
-  const [userName] = useState('Sarah');
+  const [healthScore, setHealthScore] = useState(0);
+  const [userName, setUserName] = useState('');
+  const [healthStats, setHealthStats] = useState({
+    totalReadings: 0,
+    thisWeekReadings: 0,
+    bloodSugarInRange: 0,
+  });
+  const [personalizedTip, setPersonalizedTip] = useState('');
   const [lastReadings, setLastReadings] = useState({
-    bloodSugar: { value: '124 mg/dL', time: '2h ago', status: 'normal' },
-    bloodPressure: { value: '120/80', time: 'This morning', status: 'normal' },
-    weight: { value: '165 lbs', time: 'Yesterday', status: 'stable' },
-    medication: { taken: 3, total: 4, next: 'In 2 hours' }
+    bloodSugar: { value: '--', time: 'No data', status: 'normal' },
+    bloodPressure: { value: '--', time: 'No data', status: 'normal' },
+    weight: { value: '--', time: 'No data', status: 'stable' },
+    medication: { taken: 0, total: 0, next: 'No data' }
   });
 
   // Modal states
@@ -42,29 +63,162 @@ export default function HomeScreen() {
   const [bloodPressureModalVisible, setBloodPressureModalVisible] = useState(false);
   const [weightModalVisible, setWeightModalVisible] = useState(false);
   const [medicationModalVisible, setMedicationModalVisible] = useState(false);
+  const [medications, setMedications] = useState<MedicationRecord[]>([]);
   
-  const breathAnim = new Animated.Value(0);
-  const fadeAnim = new Animated.Value(0);
-  const slideAnim = new Animated.Value(50);
-  const scaleAnim = new Animated.Value(0.8);
-  const cardAnimations = [
+  const breathAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const cardAnimations = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0),
     new Animated.Value(0)
-  ];
-  const tipFloatAnim = new Animated.Value(0);
-  const progressAnim = new Animated.Value(0);
+  ]).current;
+  const tipFloatAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Simulate loading data
-    const loadData = async () => {
-      // Simulate API call or data fetching
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      setLoading(false);
-    };
+    loadUserData();
+    loadMealRecommendations();
+  }, [user]);
 
-    loadData();
+  useEffect(() => {
+    // Start animations after component mounts
+    startAnimations();
+  }, []);
+
+  useEffect(() => {
+    console.log('🍽️ Online recipes updated:', onlineRecipes.length);
+    console.log('📊 API Loading:', apiLoading);
+  }, [onlineRecipes, apiLoading]);
+
+  const loadMealRecommendations = async () => {
+    try {
+      console.log('📱 Loading meal recommendations...');
+      console.log('Local recipes available:', lowCarbRecipes.length);
+      // Fetch 6 random healthy recipes for the home screen
+      await dispatch(getRandomRecipesOnline({ 
+        count: 6, 
+        tags: ['healthy'] 
+      }) as any);
+      console.log('✅ Meal recommendations loaded');
+    } catch (error) {
+      console.error('❌ Failed to load meal recommendations:', error);
+    }
+  };
+
+  const loadUserData = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Set username from user email
+      setUserName(user.email?.split('@')[0] || 'User');
+
+      // Try to load user profile (optional)
+      try {
+        const profile = await UserProfileRepository.getProfileByUserId(user.id);
+        if (profile?.display_name) {
+          setUserName(profile.display_name);
+        }
+      } catch (profileError) {
+        console.warn('Profile loading failed (non-critical):', profileError);
+      }
+
+      // Load health stats
+      try {
+        const stats = await HealthReadingsRepository.getHealthStats(user.id);
+        setHealthStats(stats);
+        
+        // Calculate health score
+        const score = calculateHealthScore(stats);
+        setHealthScore(score);
+        
+        // Update last readings display
+        updateLastReadingsDisplay(stats);
+      } catch (statsError) {
+        console.warn('Health stats loading failed (non-critical):', statsError);
+      }
+
+      // Load medications
+      try {
+        const meds = await MedicationRepository.getMedications(user.id);
+        setMedications(meds);
+      } catch (medsError) {
+        console.warn('Medications loading failed (non-critical):', medsError);
+      }
+
+      // Load personalized tip
+      try {
+        const recommendations = await UserProfileRepository.getPersonalizedRecommendations(user.id);
+        if (recommendations?.length > 0) {
+          setPersonalizedTip(recommendations[0]);
+        }
+      } catch (tipError) {
+        console.warn('Recommendations loading failed (non-critical):', tipError);
+      }
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Critical error loading user data:', error);
+      setLoading(false);
+    }
+  };
+
+  const calculateHealthScore = (stats: any): number => {
+    let score = 50; // Base score
+
+    // Add points for tracking consistency
+    if (stats.thisWeekReadings >= 7) score += 20;
+    else if (stats.thisWeekReadings >= 3) score += 10;
+
+    // Add points for blood sugar in range
+    if (stats.bloodSugarInRange >= 80) score += 20;
+    else if (stats.bloodSugarInRange >= 60) score += 10;
+
+    // Add points for having recent readings
+    if (stats.lastBloodSugar) score += 5;
+    if (stats.lastWeight) score += 5;
+
+    return Math.min(100, score);
+  };
+
+  const updateLastReadingsDisplay = (stats: any) => {
+    const updated: any = { ...lastReadings };
+
+    if (stats.lastBloodSugar) {
+      updated.bloodSugar = {
+        value: `${stats.lastBloodSugar} mg/dL`,
+        time: 'Recent',
+        status: stats.lastBloodSugar >= 70 && stats.lastBloodSugar <= 140 ? 'normal' : 'warning',
+      };
+    }
+
+    if (stats.lastBloodPressure) {
+      updated.bloodPressure = {
+        value: `${stats.lastBloodPressure.systolic}/${stats.lastBloodPressure.diastolic}`,
+        time: 'Recent',
+        status: 'normal',
+      };
+    }
+
+    if (stats.lastWeight) {
+      updated.weight = {
+        value: `${stats.lastWeight} kg`,
+        time: 'Recent',
+        status: 'stable',
+      };
+    }
+
+    setLastReadings(updated);
+  };
+
+  const startAnimations = () => {
 
     // Breathing animation for health score
     Animated.loop(
@@ -101,7 +255,7 @@ export default function HomeScreen() {
         Animated.timing(tipFloatAnim, { toValue: 0, duration: 3000, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -125,6 +279,10 @@ export default function HomeScreen() {
     if (score >= 50) return '#FFC107';
     return '#F44336';
   };
+
+  // Weekly progress computed from this week's readings against a 7-day target
+  const weeklyTarget = 7;
+  const weeklyProgressPercent = Math.min(100, Math.round((healthStats.thisWeekReadings / weeklyTarget) * 100));
 
   const handleQuickLog = async (type: string) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -177,72 +335,128 @@ export default function HomeScreen() {
     setRefreshing(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    // Simulate fetching fresh data
-    setTimeout(() => {
-      // Update readings with fresh data
-      setLastReadings({
-        bloodSugar: { value: '118 mg/dL', time: 'Just now', status: 'normal' },
-        bloodPressure: { value: '120/80', time: 'Just now', status: 'normal' },
-        weight: { value: '165 lbs', time: 'Just now', status: 'stable' },
-        medication: { taken: 3, total: 4, next: 'In 2 hours' }
-      });
-      setRefreshing(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }, 2000);
+    await loadUserData();
+    
+    setRefreshing(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   // Modal save handlers
-  const handleBloodSugarSave = (data: any) => {
-    console.log('Blood Sugar saved:', data);
-    // Update last readings
-    setLastReadings(prev => ({
-      ...prev,
-      bloodSugar: {
-        value: `${data.value} mg/dL`,
-        time: 'Just now',
-        status: 'normal'
-      }
-    }));
-    // TODO: Save to database
+  const handleBloodSugarSave = async (data: any) => {
+    if (!user) return;
+
+    try {
+      await HealthReadingsRepository.saveBloodSugarReading({
+        user_id: user.id,
+        value: parseFloat(data.value),
+        unit: data.unit || 'mg/dL',
+        meal_context: data.mealContext,
+        notes: data.notes,
+      });
+
+      // Update UI
+      setLastReadings(prev => ({
+        ...prev,
+        bloodSugar: {
+          value: `${data.value} ${data.unit || 'mg/dL'}`,
+          time: 'Just now',
+          status: 'normal'
+        }
+      }));
+
+      // Refresh stats
+      await loadUserData();
+      
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Failed to save blood sugar:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
-  const handleBloodPressureSave = (data: any) => {
-    console.log('Blood Pressure saved:', data);
-    setLastReadings(prev => ({
-      ...prev,
-      bloodPressure: {
-        value: `${data.systolic}/${data.diastolic}`,
-        time: 'Just now',
-        status: 'normal'
-      }
-    }));
-    // TODO: Save to database
+  const handleBloodPressureSave = async (data: any) => {
+    if (!user) return;
+
+    try {
+      await HealthReadingsRepository.saveBloodPressureReading({
+        user_id: user.id,
+        systolic: parseInt(data.systolic),
+        diastolic: parseInt(data.diastolic),
+        heart_rate: data.heartRate ? parseInt(data.heartRate) : undefined,
+        notes: data.notes,
+      });
+
+      setLastReadings(prev => ({
+        ...prev,
+        bloodPressure: {
+          value: `${data.systolic}/${data.diastolic}`,
+          time: 'Just now',
+          status: 'normal'
+        }
+      }));
+
+      await loadUserData();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Failed to save blood pressure:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
-  const handleWeightSave = (data: any) => {
-    console.log('Weight saved:', data);
-    setLastReadings(prev => ({
-      ...prev,
-      weight: {
-        value: `${data.weight} ${data.unit}`,
-        time: 'Just now',
-        status: 'stable'
-      }
-    }));
-    // TODO: Save to database
+  const handleWeightSave = async (data: any) => {
+    if (!user) return;
+
+    try {
+      await HealthReadingsRepository.saveWeightReading({
+        user_id: user.id,
+        weight: parseFloat(data.weight),
+        unit: data.unit || 'kg',
+        body_fat: data.bodyFat ? parseFloat(data.bodyFat) : undefined,
+        notes: data.notes,
+      });
+
+      setLastReadings(prev => ({
+        ...prev,
+        weight: {
+          value: `${data.weight} ${data.unit}`,
+          time: 'Just now',
+          status: 'stable'
+        }
+      }));
+
+      await loadUserData();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Failed to save weight:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
-  const handleMedicationSave = (data: any) => {
-    console.log('Medication saved:', data);
-    setLastReadings(prev => ({
-      ...prev,
-      medication: {
-        ...prev.medication,
-        taken: prev.medication.taken + data.medications.length,
-        next: 'In 8 hours'
-      }
-    }));
-    // TODO: Save to database
+  const handleMedicationSave = async (data: {
+    medications: { id: string; taken: boolean; time: Date }[];
+    time: Date;
+    notes?: string;
+  }) => {
+    if (!user) return;
+
+    try {
+      await HealthReadingsRepository.saveMedicationLog(user.id, data.medications, data.notes);
+
+      setLastReadings(prev => ({
+        ...prev,
+        medication: {
+          ...prev.medication,
+          taken: prev.medication.taken + data.medications.length,
+          next: 'In 8 hours'
+        }
+      }));
+
+      await loadUserData();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Failed to save medication:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
   // Show loading screen while data is being fetched
@@ -251,12 +465,12 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
       
       {/* Header Section */}
       <LinearGradient
-        colors={['#E3F2FD', '#FFFFFF']}
+        colors={gradients.home as [string, string, ...string[]]}
         style={styles.headerGradient}
       >
         <Animated.View 
@@ -346,9 +560,35 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* Promotional Banner */}
+        <View style={[styles.promoBanner, { backgroundColor: colors.surface }]}>
+          <View style={styles.promoLeft}>
+            <Text style={[styles.promoHeadline, { color: colors.text }]}>Get 30% OFF on Swimwear!</Text>
+            <Text style={[styles.promoSubheadline, { color: colors.textSecondary }]}>Limited time offer. Shop now!</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/meal')}
+              activeOpacity={0.85}
+              style={[styles.promoButton, { backgroundColor: colors.warning }]}
+            >
+              <MaterialIcons name="local-offer" size={18} color={isDarkMode ? '#0F172A' : '#1F2937'} style={{ marginRight: 8 }} />
+              <Text style={[styles.promoButtonText, { color: isDarkMode ? '#0F172A' : '#1F2937' }]}>Shop Now</Text>
+            </TouchableOpacity>
+          </View>
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1540574163026-643ea20ade25?w=600&auto=format&fit=crop&q=60' }}
+            style={styles.promoRightImage}
+            resizeMode="contain"
+          />
+        </View>
+        <View style={styles.promoDotsContainer}>
+          <View style={[styles.promoDot, { backgroundColor: colors.border }]} />
+          <View style={[styles.promoDotActive, { backgroundColor: colors.info }]} />
+          <View style={[styles.promoDot, { backgroundColor: colors.border }]} />
+        </View>
+
         {/* Quick Log Section */}
         <View style={styles.quickLogSection}>
-          <Text style={styles.sectionTitle}>Quick Log</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Log</Text>
           
           <View style={styles.quickLogGrid}>
             {/* Blood Sugar Card */}
@@ -359,18 +599,15 @@ export default function HomeScreen() {
               }}
             >
               <TouchableOpacity 
-                style={[styles.quickLogCard, { borderColor: 'rgba(233, 30, 99, 0.1)' }]}
+                style={[styles.quickLogCard, { borderColor: isDarkMode ? colors.border : 'rgba(233, 30, 99, 0.1)', backgroundColor: colors.surface }]}
                 onPress={() => handleQuickLog('bloodSugar')}
                 activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={['#FCE4EC', '#FFFFFF']}
-                  style={styles.cardGradient}
-                >
+                <View style={styles.cardGradient}>
                   <Ionicons name="water" size={48} color="#E91E63" />
-                  <Text style={styles.cardLabel}>Blood Sugar</Text>
-                  <Text style={styles.cardReading}>{lastReadings.bloodSugar.value}</Text>
-                  <Text style={styles.cardTime}>{lastReadings.bloodSugar.time}</Text>
+                  <Text style={[styles.cardLabel, { color: colors.text }]}>Blood Sugar</Text>
+                  <Text style={[styles.cardReading, { color: colors.text }]}>{lastReadings.bloodSugar.value}</Text>
+                  <Text style={[styles.cardTime, { color: colors.textSecondary }]}>{lastReadings.bloodSugar.time}</Text>
                   <Animated.View 
                     style={[
                       styles.statusDot, 
@@ -385,7 +622,7 @@ export default function HomeScreen() {
                       }
                     ]} 
                   />
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </Animated.View>
 
@@ -397,14 +634,11 @@ export default function HomeScreen() {
               }}
             >
               <TouchableOpacity 
-                style={[styles.quickLogCard, { borderColor: 'rgba(33, 150, 243, 0.1)' }]}
+                style={[styles.quickLogCard, { borderColor: isDarkMode ? colors.border : 'rgba(33, 150, 243, 0.1)', backgroundColor: colors.surface }]}
                 onPress={() => handleQuickLog('bloodPressure')}
                 activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={['#E3F2FD', '#FFFFFF']}
-                  style={styles.cardGradient}
-                >
+                <View style={styles.cardGradient}>
                   <Animated.View
                     style={{
                       transform: [{
@@ -417,11 +651,11 @@ export default function HomeScreen() {
                   >
                     <Ionicons name="heart" size={48} color="#2196F3" />
                   </Animated.View>
-                  <Text style={styles.cardLabel}>Blood Pressure</Text>
-                  <Text style={styles.cardReading}>{lastReadings.bloodPressure.value}</Text>
-                  <Text style={styles.cardTime}>{lastReadings.bloodPressure.time}</Text>
+                  <Text style={[styles.cardLabel, { color: colors.text }]}>Blood Pressure</Text>
+                  <Text style={[styles.cardReading, { color: colors.text }]}>{lastReadings.bloodPressure.value}</Text>
+                  <Text style={[styles.cardTime, { color: colors.textSecondary }]}>{lastReadings.bloodPressure.time}</Text>
                   <View style={[styles.statusDot, { backgroundColor: '#4CAF50' }]} />
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </Animated.View>
 
@@ -433,18 +667,15 @@ export default function HomeScreen() {
               }}
             >
               <TouchableOpacity 
-                style={[styles.quickLogCard, { borderColor: 'rgba(76, 175, 80, 0.1)' }]}
+                style={[styles.quickLogCard, { borderColor: isDarkMode ? colors.border : 'rgba(76, 175, 80, 0.1)', backgroundColor: colors.surface }]}
                 onPress={() => handleQuickLog('weight')}
                 activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={['#E8F5E8', '#FFFFFF']}
-                  style={styles.cardGradient}
-                >
+                <View style={styles.cardGradient}>
                   <MaterialIcons name="monitor-weight" size={48} color="#4CAF50" />
-                  <Text style={styles.cardLabel}>Weight</Text>
-                  <Text style={styles.cardReading}>{lastReadings.weight.value}</Text>
-                  <Text style={styles.cardTime}>{lastReadings.weight.time}</Text>
+                  <Text style={[styles.cardLabel, { color: colors.text }]}>Weight</Text>
+                  <Text style={[styles.cardReading, { color: colors.text }]}>{lastReadings.weight.value}</Text>
+                  <Text style={[styles.cardTime, { color: colors.textSecondary }]}>{lastReadings.weight.time}</Text>
                   <Animated.View 
                     style={[
                       styles.trendIcon,
@@ -460,7 +691,7 @@ export default function HomeScreen() {
                   >
                     <Ionicons name="trending-up" size={16} color="#4CAF50" />
                   </Animated.View>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </Animated.View>
 
@@ -472,20 +703,17 @@ export default function HomeScreen() {
               }}
             >
               <TouchableOpacity 
-                style={[styles.quickLogCard, { borderColor: 'rgba(255, 152, 0, 0.1)' }]}
+                style={[styles.quickLogCard, { borderColor: isDarkMode ? colors.border : 'rgba(255, 152, 0, 0.1)', backgroundColor: colors.surface }]}
                 onPress={() => handleQuickLog('medication')}
                 activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={['#FFF3E0', '#FFFFFF']}
-                  style={styles.cardGradient}
-                >
+                <View style={styles.cardGradient}>
                   <Ionicons name="medical" size={48} color="#FF9800" />
-                  <Text style={styles.cardLabel}>Medication</Text>
-                  <Text style={styles.cardReading}>
+                  <Text style={[styles.cardLabel, { color: colors.text }]}>Medication</Text>
+                  <Text style={[styles.cardReading, { color: colors.text }]}>
                     {lastReadings.medication.taken} of {lastReadings.medication.total} taken
                   </Text>
-                  <Text style={styles.cardTime}>Next: {lastReadings.medication.next}</Text>
+                  <Text style={[styles.cardTime, { color: colors.textSecondary }]}>Next: {lastReadings.medication.next}</Text>
                   {lastReadings.medication.taken < lastReadings.medication.total && (
                     <Animated.View 
                       style={[
@@ -503,7 +731,7 @@ export default function HomeScreen() {
                       <Text style={styles.alertText}>!</Text>
                     </Animated.View>
                   )}
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -511,10 +739,10 @@ export default function HomeScreen() {
 
         {/* Today's Summary Card */}
         <View style={styles.summarySection}>
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
             <View style={styles.summaryHeader}>
-              <Text style={styles.summaryTitle}>Today's Progress</Text>
-              <Text style={styles.summaryProgress}>2 of 4 checks completed</Text>
+              <Text style={[styles.summaryTitle, { color: colors.text }]}>This Week's Progress</Text>
+              <Text style={[styles.summaryProgress, { color: colors.textSecondary }]}>{healthStats.thisWeekReadings} readings logged</Text>
             </View>
             
             <View style={styles.progressBar}>
@@ -524,7 +752,7 @@ export default function HomeScreen() {
                   { 
                     width: progressAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: ['0%', '50%']
+                      outputRange: ['0%', `${weeklyProgressPercent}%`]
                     })
                   }
                 ]} 
@@ -532,20 +760,43 @@ export default function HomeScreen() {
             </View>
             
             <View style={styles.checksRow}>
-              <View style={[styles.checkItem, styles.checkCompleted]}>
-                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              {/* Blood Sugar completion based on existence of last reading */}
+              <View style={[styles.checkItem, lastReadings.bloodSugar.value !== '--' ? styles.checkCompleted : styles.checkPending]}>
+                {lastReadings.bloodSugar.value !== '--' ? (
+                  <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={20} color="#E0E0E0" />
+                )}
                 <Text style={styles.checkLabel}>Blood Sugar</Text>
               </View>
-              <View style={[styles.checkItem, styles.checkCompleted]}>
-                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+
+              {/* BP completion based on existence of last reading */}
+              <View style={[styles.checkItem, lastReadings.bloodPressure.value !== '--' ? styles.checkCompleted : styles.checkPending]}>
+                {lastReadings.bloodPressure.value !== '--' ? (
+                  <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={20} color="#E0E0E0" />
+                )}
                 <Text style={styles.checkLabel}>BP</Text>
               </View>
-              <View style={[styles.checkItem, styles.checkPending]}>
-                <Ionicons name="ellipse-outline" size={20} color="#E0E0E0" />
+
+              {/* Weight completion based on existence of last reading */}
+              <View style={[styles.checkItem, lastReadings.weight.value !== '--' ? styles.checkCompleted : styles.checkPending]}>
+                {lastReadings.weight.value !== '--' ? (
+                  <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={20} color="#E0E0E0" />
+                )}
                 <Text style={styles.checkLabel}>Weight</Text>
               </View>
-              <View style={[styles.checkItem, styles.checkPending]}>
-                <Ionicons name="ellipse-outline" size={20} color="#E0E0E0" />
+
+              {/* Meds completion based on taken vs total */}
+              <View style={[styles.checkItem, lastReadings.medication.taken > 0 ? styles.checkCompleted : styles.checkPending]}>
+                {lastReadings.medication.taken > 0 ? (
+                  <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                ) : (
+                  <Ionicons name="ellipse-outline" size={20} color="#E0E0E0" />
+                )}
                 <Text style={styles.checkLabel}>Meds</Text>
               </View>
             </View>
@@ -604,12 +855,11 @@ export default function HomeScreen() {
                 >
                   <Text style={styles.tipBadgeText}>Nutrition Tip</Text>
                 </Animated.View>
-                <Text style={styles.tipHeadline}>Morning Protein Power</Text>
+                <Text style={styles.tipHeadline}>Health Tip for You</Text>
                 <Text style={styles.tipText}>
-                  Eat protein at breakfast to stabilize blood sugar throughout the morning. 
-                  Aim for 20-30g from eggs, Greek yogurt, or nuts.
+                  {personalizedTip || 'Eat protein at breakfast to stabilize blood sugar throughout the morning. Aim for 20-30g from eggs, Greek yogurt, or nuts.'}
                 </Text>
-                <Text style={styles.tipSource}>Based on ADA guidelines</Text>
+                <Text style={styles.tipSource}>Personalized for your health goals</Text>
                 <View style={styles.tipActions}>
                   <TouchableOpacity 
                     style={styles.tipButton}
@@ -632,6 +882,82 @@ export default function HomeScreen() {
             </LinearGradient>
           </Animated.View>
         </View>
+
+        {/* Meal Recommendations - API Driven with Local Fallback */}
+        <View style={styles.mealSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recommended Meals</Text>
+            <TouchableOpacity 
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/(tabs)/meal');
+              }}
+            >
+              <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+          >
+            {(onlineRecipes.length > 0 ? onlineRecipes : lowCarbRecipes).slice(0, 6).map((recipe: any, index) => (
+                <TouchableOpacity
+                  key={recipe.id}
+                  style={styles.mealCard}
+                  onPress={async () => {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push(`/(tabs)/meal`);
+                  }}
+                  activeOpacity={0.9}
+                >
+                  {(recipe.image || recipe.imageUrl) ? (
+                    <Image 
+                      source={{ uri: recipe.image || recipe.imageUrl }}
+                      style={styles.mealImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.mealImage, { backgroundColor: '#E0E0E0', alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="restaurant" size={40} color="#999" />
+                    </View>
+                  )}
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.7)']}
+                    style={styles.mealGradient}
+                  >
+                    <Text style={styles.mealTitle} numberOfLines={2}>
+                      {recipe.title || recipe.name}
+                    </Text>
+                    <View style={styles.mealMeta}>
+                      {recipe.readyInMinutes && (
+                        <View style={styles.metaItem}>
+                          <Ionicons name="time-outline" size={14} color="#FFF" />
+                          <Text style={styles.metaText}>{recipe.readyInMinutes}m</Text>
+                        </View>
+                      )}
+                      {recipe.healthScore && (
+                        <View style={styles.metaItem}>
+                          <Ionicons name="heart-outline" size={14} color="#FFF" />
+                          <Text style={styles.metaText}>{recipe.healthScore}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+        </View>
+
+        {apiLoading && onlineRecipes.length === 0 && (
+          <View style={styles.mealSection}>
+            <Text style={styles.sectionTitle}>Loading Meal Recommendations...</Text>
+            <View style={{ height: 120, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#2196F3" />
+            </View>
+          </View>
+        )}
 
         {/* Bottom spacing */}
         <View style={{ height: 100 }} />
@@ -659,6 +985,7 @@ export default function HomeScreen() {
       <MedicationModal
         visible={medicationModalVisible}
         onClose={() => setMedicationModalVisible(false)}
+        medications={medications}
         onSave={handleMedicationSave}
       />
     </View>
@@ -756,6 +1083,66 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  // Promotional Banner Styles
+  promoBanner: {
+    margin: 16,
+    padding: 16,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  promoLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  promoHeadline: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  promoSubheadline: {
+    fontSize: 14,
+    opacity: 0.8,
+    marginBottom: 12,
+  },
+  promoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  promoButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  promoRightImage: {
+    width: 120,
+    height: 90,
+  },
+  promoDotsContainer: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    gap: 6,
+    marginTop: -8,
+    marginBottom: 8,
+  },
+  promoDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.6,
+  },
+  promoDotActive: {
+    width: 16,
+    height: 6,
+    borderRadius: 3,
+  },
+
   // Quick Log Section
   quickLogSection: {
     padding: 16,
@@ -976,5 +1363,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2196F3',
     fontWeight: '600',
+  },
+  // Meal Section Styles
+  mealSection: {
+    paddingVertical: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  seeAllText: {
+    fontSize: 14,
+    color: '#2196F3',
+    fontWeight: '600',
+  },
+  mealCard: {
+    width: 180,
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#FFF',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  mealImage: {
+    width: '100%',
+    height: '100%',
+  },
+  mealGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    justifyContent: 'flex-end',
+  },
+  mealTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  mealMeta: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '500',
   },
 });

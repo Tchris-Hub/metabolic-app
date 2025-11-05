@@ -1,31 +1,171 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '../../contexts/AuthContext';
+import { HealthReadingsRepository } from '../../services/supabase/repositories/HealthReadingsRepository';
+import MedicationModal from '../../component/modals/MedicationModal';
+import { MedicationRepository, MedicationRecord } from '../../services/supabase/repositories/MedicationRepository';
 
 export default function MedicationDetailScreen() {
-  const medications = [
-    { id: '1', name: 'Metformin', dosage: '500mg', frequency: '2x daily', taken: 14, missed: 0 },
-    { id: '2', name: 'Lisinopril', dosage: '10mg', frequency: '1x daily', taken: 7, missed: 0 },
-    { id: '3', name: 'Atorvastatin', dosage: '20mg', frequency: '1x daily', taken: 7, missed: 1 },
-    { id: '4', name: 'Aspirin', dosage: '81mg', frequency: '1x daily', taken: 7, missed: 0 },
-  ];
+  const { user } = useAuth();
+  const [medications, setMedications] = useState<Array<{
+    id: string;
+    name: string;
+    dosage: string;
+    frequency: string;
+    taken: number;
+    missed: number;
+  }>>([]);
+  const [recentLogs, setRecentLogs] = useState<Array<{
+    id: string;
+    medication: string;
+    time: Date;
+    taken: boolean;
+  }>>([]);
+  const [userMedications, setUserMedications] = useState<MedicationRecord[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const recentLogs = [
-    { id: '1', medication: 'Metformin', time: new Date(2024, 0, 15, 8, 0), taken: true },
-    { id: '2', medication: 'Lisinopril', time: new Date(2024, 0, 15, 8, 0), taken: true },
-    { id: '3', medication: 'Metformin', time: new Date(2024, 0, 15, 20, 0), taken: true },
-    { id: '4', medication: 'Atorvastatin', time: new Date(2024, 0, 14, 20, 0), taken: false },
-  ];
+  // Load medications and logs from database
+  const loadData = async () => {
+    if (!user) return;
+
+    try {
+      const [medList, logs] = await Promise.all([
+        MedicationRepository.getMedications(user.id),
+        HealthReadingsRepository.getReadingsByType(user.id, 'medication'),
+      ]);
+
+      setUserMedications(medList);
+
+      const medStats = new Map<string, { taken: number; missed: number; name: string; dosage: string; frequency: string }>();
+
+      // Initialize stats with prescriptions
+      medList.forEach((med) => {
+        medStats.set(med.id, {
+          taken: 0,
+          missed: 0,
+          name: med.name,
+          dosage: med.dosage,
+          frequency: med.frequency,
+        });
+      });
+
+      logs.forEach((log: any) => {
+        const meds = Array.isArray(log.metadata?.medications) ? log.metadata.medications : [];
+        meds.forEach((med: any) => {
+          const key = med.id || med.medication_id || med.name;
+          if (!key) return;
+
+          if (!medStats.has(key)) {
+            medStats.set(key, {
+              taken: 0,
+              missed: 0,
+              name: med.name || 'Medication',
+              dosage: med.dosage || '',
+              frequency: med.frequency || '',
+            });
+          }
+
+          const entry = medStats.get(key)!;
+          if (med.taken === false) {
+            entry.missed += 1;
+          } else {
+            entry.taken += 1;
+          }
+        });
+      });
+
+      const medicationsArray = Array.from(medStats.entries()).map(([id, stats]) => ({
+        id,
+        name: stats.name,
+        dosage: stats.dosage,
+        frequency: stats.frequency,
+        taken: stats.taken,
+        missed: stats.missed,
+      }));
+
+      setMedications(medicationsArray);
+
+      const recentLogsArray = logs
+        .flatMap((log: any) => {
+          const meds = Array.isArray(log.metadata?.medications) ? log.metadata.medications : [];
+          return meds.map((med: any, index: number) => ({
+            id: `${log.id}-${med.id || index}`,
+            medication: med.name || 'Medication',
+            time: new Date(med.time || log.timestamp),
+            taken: med.taken !== false,
+          }));
+        })
+        .sort((a: any, b: any) => b.time.getTime() - a.time.getTime())
+        .slice(0, 10);
+
+      setRecentLogs(recentLogsArray);
+    } catch (error) {
+      console.error('Failed to load medication data:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const getAdherenceRate = (med: typeof medications[0]) => {
+    const total = med.taken + med.missed;
+    return total > 0 ? Math.round((med.taken / total) * 100) : 0;
+  };
+
+  const handleLogMedications = async (data: {
+    medications: Array<{
+      id: string;
+      taken: boolean;
+      time: Date;
+      name: string;
+      dosage: string;
+      frequency: string;
+      withFood?: boolean;
+      instructions?: string | null;
+      times?: string[];
+    }>;
+    time: Date;
+    notes?: string;
+  }) => {
+    if (!user) return;
+
+    try {
+      await HealthReadingsRepository.saveMedicationLog(user.id, data.medications, data.notes);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Saved', 'Medication log saved successfully.');
+      setModalVisible(false);
+      await loadData();
+    } catch (error: any) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', error?.message || 'Failed to save medication log.');
+    }
+  };
+
+  const handleAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setModalVisible(true);
+  };
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -40,11 +180,6 @@ export default function MedicationDetailScreen() {
       month: 'short',
       day: 'numeric',
     });
-  };
-
-  const getAdherenceRate = (med: typeof medications[0]) => {
-    const total = med.taken + med.missed;
-    return Math.round((med.taken / total) * 100);
   };
 
   return (
@@ -77,7 +212,13 @@ export default function MedicationDetailScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         {/* Streak Card */}
         <View style={styles.streakContainer}>
           <LinearGradient
@@ -163,7 +304,7 @@ export default function MedicationDetailScreen() {
 
       <TouchableOpacity 
         style={styles.fab}
-        onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+        onPress={handleAdd}
       >
         <LinearGradient
           colors={['#FF9800', '#F57C00']}
@@ -172,6 +313,12 @@ export default function MedicationDetailScreen() {
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </LinearGradient>
       </TouchableOpacity>
+      <MedicationModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        medications={userMedications}
+        onSave={handleLogMedications}
+      />
     </View>
   );
 }

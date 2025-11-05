@@ -118,7 +118,19 @@ export default function PremiumOnboardingScreen() {
 
       {/* Skip */}
       <TouchableOpacity className="absolute top-16 right-6 z-20 px-4 py-2"
-        onPress={() => goTo(SLIDES.length - 1)}
+        onPress={async () => {
+          try {
+            const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+            // Mark onboarding slides as seen so we don't show them again
+            await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+          } catch (e) {
+            // Even if storage fails, proceed to next step
+            console.warn('Skip onboarding: failed to set hasSeenOnboarding flag:', e);
+          } finally {
+            // Skip directly to the consent step
+            router.replace('/screens/auth/disclaimer-consent');
+          }
+        }}
         style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}>
         <Text className="text-white font-semibold">Skip</Text>
       </TouchableOpacity>

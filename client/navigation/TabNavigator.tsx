@@ -4,11 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, Text } from 'react-native';
 
 // Import your screen components here
-import HomeScreen from '../app/screens/(tabs)/Homescreen';
-import LogScreen from '../app/screens/(tabs)/Logscreen';
-import MealScreen from '../app/screens/(tabs)/Mealscreen';
-import LearnScreen from '../app/screens/(tabs)/Learnscreen';
-import MoreScreen from '../app/screens/(tabs)/Morescreen';
+import HomeScreen from '../app/(tabs)/index';
+import LogScreen from '../app/(tabs)/log';
+import MealScreen from '../app/(tabs)/meal';
+import LearnScreen from '../app/(tabs)/learn';
+import MoreScreen from '../app/(tabs)/more';
 
 const Tab = createBottomTabNavigator();
 

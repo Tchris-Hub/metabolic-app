@@ -1,3 +1,5 @@
+import { NavigationProp, RouteProp } from '@react-navigation/native';
+
 export type RootStackParamList = {
   Main: undefined;
   Auth: undefined;

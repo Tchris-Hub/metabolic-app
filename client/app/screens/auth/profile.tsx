@@ -1,12 +1,14 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Dimensions, Animated, ScrollView, Image, Alert, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Dimensions, Animated, ScrollView, Image, Alert, Modal, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { launchImageLibrary, launchCamera, ImagePickerResponse, MediaType } from 'react-native-image-picker';
-import { Platform } from 'react-native';
+import { supabase } from '../../../services/supabase/config';
+import { useAuth } from '../../../contexts/AuthContext';
+import { AuthService } from '../../../services/supabase/auth';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -114,23 +116,10 @@ const COUNTRIES = [
   { code: 'BI', name: 'Burundi', flag: '🇧🇮' },
   { code: 'MW', name: 'Malawi', flag: '🇲🇼' },
   { code: 'MZ', name: 'Mozambique', flag: '🇲🇿' },
-  { code: 'MG', name: 'Madagascar', flag: '🇲🇬' },
-  { code: 'MU', name: 'Mauritius', flag: '🇲🇺' },
-  { code: 'SC', name: 'Seychelles', flag: '🇸🇨' },
-  { code: 'KM', name: 'Comoros', flag: '🇰🇲' },
-  { code: 'DJ', name: 'Djibouti', flag: '🇩🇯' },
-  { code: 'SO', name: 'Somalia', flag: '🇸🇴' },
-  { code: 'ER', name: 'Eritrea', flag: '🇪🇷' },
-  { code: 'SS', name: 'South Sudan', flag: '🇸🇸' },
-  { code: 'UG', name: 'Uganda', flag: '🇺🇬' },
-  { code: 'TZ', name: 'Tanzania', flag: '🇹🇿' },
-  { code: 'RW', name: 'Rwanda', flag: '🇷🇼' },
-  { code: 'BI', name: 'Burundi', flag: '🇧🇮' },
-  { code: 'MW', name: 'Malawi', flag: '🇲🇼' },
-  { code: 'MZ', name: 'Mozambique', flag: '🇲🇿' },
 ];
 
 export default function ProfileSetupScreen() {
+  const { user } = useAuth();
   const logoBreath = useRef(new Animated.Value(0)).current;
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -144,6 +133,7 @@ export default function ProfileSetupScreen() {
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
   const [country, setCountry] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     Animated.loop(
@@ -161,6 +151,40 @@ export default function ProfileSetupScreen() {
   const press = (fn: () => void) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     fn();
+  };
+
+  const parseHeightToCm = (input: string): number | null => {
+    if (!input) return null;
+    const trimmed = input.trim();
+    // Handle feet'inches format like 5'8 or 5' 8"
+    const feetInchesMatch = trimmed.match(/^(\d+)\s*'?\s*(\d+)?\s*\"?/);
+    if (feetInchesMatch) {
+      const feet = parseInt(feetInchesMatch[1], 10);
+      const inches = feetInchesMatch[2] ? parseInt(feetInchesMatch[2], 10) : 0;
+      const totalInches = feet * 12 + inches;
+      return Math.round(totalInches * 2.54 * 100) / 100;
+    }
+    // Extract first decimal number (e.g., "173 cm")
+    const numberMatch = trimmed.match(/\d+(\.\d+)?/);
+    if (numberMatch) {
+      const value = parseFloat(numberMatch[0]);
+      return isNaN(value) ? null : value;
+    }
+    return null;
+  };
+
+  const parseWeightToKg = (input: string): number | null => {
+    if (!input) return null;
+    const trimmed = input.trim();
+    const numberMatch = trimmed.match(/\d+(\.\d+)?/);
+    if (!numberMatch) return null;
+    const value = parseFloat(numberMatch[0]);
+    if (isNaN(value)) return null;
+    // If user included 'lb' or 'lbs', convert to kg
+    if (/lb(s)?/i.test(trimmed)) {
+      return Math.round((value * 0.453592) * 100) / 100;
+    }
+    return value;
   };
 
   const formatDateInput = (text: string) => {
@@ -290,12 +314,183 @@ export default function ProfileSetupScreen() {
     }
   };
 
+  const saveProfileToSupabase = async () => {
+    let activeUser = user;
+    if (!activeUser) {
+      // Fallback: fetch from Supabase session directly
+      const session = await AuthService.getSession();
+      if (session?.user) {
+        activeUser = session.user as any;
+      }
+    }
+
+    if (!activeUser) {
+      Alert.alert('Error', 'No user found. Please log in again.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      console.log('🚀 Starting profile save...');
+      console.log('User ID:', user.id);
+
+      // 🔍 Debug Info - NEW LOGS ADDED
+      console.log('🔍 Debug Info:');
+      console.log('User object:', JSON.stringify(user, null, 2));
+      console.log('User ID:', user.id);
+      console.log('User ID type:', typeof user.id);
+
+      // 🔍 COMPREHENSIVE DEBUGGING - NEW LOGS ADDED
+      console.log('🔍 === COMPREHENSIVE PROFILE SAVE DEBUG ===');
+      console.log('🔍 Timestamp:', new Date().toISOString());
+      console.log('🔍 User object:', JSON.stringify(user, null, 2));
+      console.log('🔍 User ID:', user.id, 'Type:', typeof user.id);
+      console.log('🔍 User email:', user.email);
+
+      // Input validation and logging
+      console.log('🔍 Input values:');
+      console.log('Full name:', `"${fullName}"`, 'Length:', fullName.length);
+      console.log('Date of birth:', `"${dateOfBirth}"`);
+      console.log('Gender:', `"${gender}"`);
+      console.log('Raw height input:', `"${height}"`);
+      console.log('Raw weight input:', `"${weight}"`);
+      console.log('Country:', selectedCountry?.name || 'None');
+
+      // Date validation and formatting
+      let formattedDate = null;
+      if (dateOfBirth) {
+        console.log('🔍 Processing date:', `"${dateOfBirth}"`);
+        const parts = dateOfBirth.split('/');
+        if (parts.length === 3) {
+          formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+          console.log('🔍 Formatted date:', formattedDate);
+        } else {
+          console.log('❌ Invalid date format');
+        }
+      }
+
+      // Height parsing and validation
+      console.log('🔍 Processing height:', `"${height}"`);
+      const sanitizedHeight = parseHeightToCm(height);
+      console.log('🔍 Parsed height:', sanitizedHeight, 'Type:', typeof sanitizedHeight);
+
+      if (sanitizedHeight === null) {
+        console.log('❌ Height parsing failed - got null');
+        Alert.alert('Error', 'Please enter a valid height (e.g., 5\'8" or 173 cm)');
+        setIsSaving(false);
+        return;
+      }
+
+      if (sanitizedHeight <= 0 || sanitizedHeight > 300) {
+        console.log('❌ Invalid height range:', sanitizedHeight, 'cm');
+        Alert.alert('Error', 'Height must be between 1-300 cm. Please enter a valid height.');
+        setIsSaving(false);
+        return;
+      }
+
+      // Weight parsing and validation
+      console.log('🔍 Processing weight:', `"${weight}"`);
+      const sanitizedWeight = parseWeightToKg(weight);
+      console.log('🔍 Parsed weight:', sanitizedWeight, 'Type:', typeof sanitizedWeight);
+
+      if (sanitizedWeight === null) {
+        console.log('❌ Weight parsing failed - got null');
+        Alert.alert('Error', 'Please enter a valid weight (e.g., 70 kg or 150 lbs)');
+        setIsSaving(false);
+        return;
+      }
+
+      if (sanitizedWeight <= 0 || sanitizedWeight > 500) {
+        console.log('❌ Invalid weight range:', sanitizedWeight, 'kg');
+        Alert.alert('Error', 'Weight must be between 1-500 kg. Please enter a valid weight.');
+        setIsSaving(false);
+        return;
+      }
+
+      // Final payload validation
+      const payload = {
+        user_id: activeUser.id,
+        email: activeUser.email || '',
+        display_name: fullName || null,
+        date_of_birth: formattedDate,
+        gender: gender ? gender.toLowerCase() : null,
+        height: sanitizedHeight,
+        weight: sanitizedWeight,
+        country: selectedCountry?.name || null,
+        avatar_url: selectedAvatar || selectedPhoto || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log('🔍 Final payload:');
+      console.log('Payload keys:', Object.keys(payload));
+      console.log('Payload types:', Object.fromEntries(
+        Object.entries(payload).map(([k, v]) => [k, typeof v])
+      ));
+      console.log('Payload values:', JSON.stringify(payload, null, 2));
+
+      // Database operation logging
+      console.log('🔍 Attempting database operation...');
+      console.log('🔍 Table: user_profiles');
+      console.log('🔍 Operation: upsert');
+      console.log('🔍 Conflict column: user_id');
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .upsert([payload], { onConflict: 'user_id' })
+        .select();
+
+      if (error) {
+        console.error('❌ DATABASE ERROR DETAILS:');
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
+        console.error('Error hint:', error.hint);
+        console.error('Full error object:', JSON.stringify(error, null, 2));
+
+        // Specific error handling
+        if (error.code === '22003') {
+          Alert.alert('Data Error', 'One of your values is too large for the database. Please check your height and weight values.');
+        } else if (error.code === '23505') {
+          Alert.alert('Duplicate Error', 'Profile already exists for this user.');
+        } else if (error.code === '42501') {
+          Alert.alert('Permission Error', 'You do not have permission to save profile data.');
+        } else {
+          Alert.alert('Database Error', `Failed to save: ${error.message}`);
+        }
+        throw error;
+      }
+
+      console.log('✅ Database operation successful!');
+      console.log('✅ Returned data:', JSON.stringify(data, null, 2));
+      console.log('✅ Data length:', data?.length);
+
+      console.log('✅ Profile saved successfully!');
+      Alert.alert('Success', 'Profile saved!', [
+        { text: 'Continue', onPress: () => router.replace('/(tabs)') }
+      ]);
+
+      // Navigate to home tabs
+      // router.replace('/(tabs)');
+    } catch (error: any) {
+      console.error('❌ UNEXPECTED ERROR:');
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      console.error('Full error object:', JSON.stringify(error, null, 2));
+
+      Alert.alert('Error', `Failed to save profile: ${error.message || 'Unknown error'}`);
+    } finally {
+      console.log('🔍 Setting isSaving to false');
+      setIsSaving(false);
+    }
+  };
+
   const nextStep = () => {
     if (currentStep < 2) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Navigate to goals screen
-      router.replace('/screens/auth/goals');
+      // Save profile data to Supabase
+      saveProfileToSupabase();
     }
   };
 
@@ -424,6 +619,8 @@ export default function ProfileSetupScreen() {
               placeholder="Enter your full name"
               placeholderTextColor="rgba(255,255,255,0.6)"
               style={{ color: 'white', fontSize: 16 }}
+              autoCapitalize="words"
+              returnKeyType="next"
             />
           </View>
         </View>
@@ -446,8 +643,9 @@ export default function ProfileSetupScreen() {
               placeholder="MM/DD/YYYY"
               placeholderTextColor="rgba(255,255,255,0.6)"
               style={{ color: 'white', fontSize: 16 }}
-              keyboardType="numeric"
+              keyboardType="number-pad"
               maxLength={10}
+              returnKeyType="next"
             />
           </View>
           <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 }}>
@@ -561,13 +759,14 @@ export default function ProfileSetupScreen() {
               placeholder="e.g., 5'8 or 173 cm"
               placeholderTextColor="rgba(255,255,255,0.6)"
               style={{ color: 'white', fontSize: 16 }}
+              keyboardType="default"
+              returnKeyType="next"
             />
-          </View>
           <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 }}>
             Used for BMI calculations and health recommendations
           </Text>
         </View>
-
+        </View>
         <View style={{ marginBottom: 20 }}>
           <Text style={{ color: 'white', fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
             Weight *
@@ -586,7 +785,8 @@ export default function ProfileSetupScreen() {
               placeholder="e.g., 150 lbs or 68 kg"
               placeholderTextColor="rgba(255,255,255,0.6)"
               style={{ color: 'white', fontSize: 16 }}
-              keyboardType="numeric"
+              keyboardType="default"
+              returnKeyType="done"
             />
           </View>
           <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 }}>
@@ -668,29 +868,24 @@ export default function ProfileSetupScreen() {
   );
 
   return (
-    <View className="flex-1">
-      <StatusBar style="light" />
-      <ExpoLinearGradient
-        colors={['#2196F3', '#4CAF50'] as [string, string, ...string[]]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ position: 'absolute', inset: 0 as any }}
-      />
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      className="flex-1"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View className="flex-1">
+          <StatusBar style="light" />
+          <ExpoLinearGradient
+            colors={['#2196F3', '#4CAF50'] as [string, string, ...string[]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ position: 'absolute', inset: 0 as any }}
+          />
 
       {/* Header */}
       <View style={{ paddingTop: H * 0.06, paddingHorizontal: 20 }}>
-        <TouchableOpacity
-          onPress={() => press(() => {
-            if (currentStep === 1) {
-              router.replace('/screens/auth/verification');
-            } else {
-              setCurrentStep(1);
-            }
-          })}
-          style={{ position: 'absolute', left: 20, top: H * 0.06, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)', zIndex: 10 }}
-        >
-          <Ionicons name="chevron-back" size={20} color="#fff" />
-        </TouchableOpacity>
+        {/* Removed back button - users can't go back after signup */}
 
         <View style={{ alignItems: 'center', marginTop: 20 }}>
           <Text style={{ color: 'white', fontSize: 28, fontWeight: '800', marginTop: 16, textAlign: 'center' }}>
@@ -734,7 +929,13 @@ export default function ProfileSetupScreen() {
       </View>
 
       {/* Content */}
-      <ScrollView style={{ flex: 1 }}>
+      <ScrollView 
+        style={{ flex: 1 }} 
+        contentContainerStyle={{ paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
         {currentStep === 1 ? renderStep1() : renderStep2()}
       </ScrollView>
 
@@ -774,7 +975,7 @@ export default function ProfileSetupScreen() {
               fontSize: 16,
               fontWeight: 'bold',
             }}>
-              {currentStep === 2 ? 'Continue' : 'Next'}
+              {isSaving ? 'Saving...' : (currentStep === 2 ? 'Complete' : 'Next')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -880,6 +1081,8 @@ export default function ProfileSetupScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+        </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }

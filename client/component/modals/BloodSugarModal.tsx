@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -29,6 +30,7 @@ interface BloodSugarModalProps {
 }
 
 export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugarModalProps) {
+  const { isDarkMode, colors } = useTheme();
   const [value, setValue] = useState('');
   const [mealTiming, setMealTiming] = useState('fasting');
   const [time, setTime] = useState(new Date());
@@ -134,6 +136,7 @@ export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugar
           <Animated.View
             style={[
               styles.modalContainer,
+              { backgroundColor: colors.surface },
               {
                 transform: [
                   { translateY: slideAnim },
@@ -142,20 +145,17 @@ export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugar
               }
             ]}
           >
-            <LinearGradient
-              colors={['#FCE4EC', '#FFFFFF']}
-              style={styles.modalGradient}
-            >
+            <View style={styles.modalGradient}>
               {/* Header */}
-              <View style={styles.header}>
+              <View style={[styles.header, { borderBottomColor: colors.border }]}>
                 <View style={styles.headerLeft}>
                   <View style={styles.iconContainer}>
                     <Ionicons name="water" size={24} color="#E91E63" />
                   </View>
-                  <Text style={styles.title}>Log Blood Sugar</Text>
+                  <Text style={[styles.title, { color: colors.text }]}>Log Blood Sugar</Text>
                 </View>
                 <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color="#6B7280" />
+                  <Ionicons name="close" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -163,30 +163,31 @@ export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugar
               <View style={styles.content}>
                 {/* Value Input */}
                 <View style={styles.inputSection}>
-                  <Text style={styles.label}>Glucose Reading</Text>
-                  <View style={styles.inputContainer}>
+                  <Text style={[styles.label, { color: colors.text }]}>Glucose Reading</Text>
+                  <View style={[styles.inputContainer, { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F9FAFB', borderColor: colors.border }]}>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { color: colors.text }]}
                       value={value}
                       onChangeText={setValue}
                       placeholder="Enter reading"
                       keyboardType="numeric"
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={colors.textTertiary}
                     />
-                    <Text style={styles.unit}>mg/dL</Text>
+                    <Text style={[styles.unit, { color: colors.textSecondary }]}>mg/dL</Text>
                   </View>
-                  <Text style={styles.reference}>Normal: 80-130 mg/dL fasting</Text>
+                  <Text style={[styles.reference, { color: colors.textSecondary }]}>Normal: 80-130 mg/dL fasting</Text>
                 </View>
 
                 {/* Meal Timing */}
                 <View style={styles.inputSection}>
-                  <Text style={styles.label}>Meal Timing</Text>
+                  <Text style={[styles.label, { color: colors.text }]}>Meal Timing</Text>
                   <View style={styles.optionsContainer}>
                     {mealOptions.map((option) => (
                       <TouchableOpacity
                         key={option.value}
                         style={[
                           styles.optionButton,
+                          { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F9FAFB', borderColor: colors.border },
                           mealTiming === option.value && styles.optionButtonActive
                         ]}
                         onPress={() => {
@@ -201,6 +202,7 @@ export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugar
                         />
                         <Text style={[
                           styles.optionText,
+                          { color: mealTiming === option.value ? '#FFFFFF' : colors.text },
                           mealTiming === option.value && styles.optionTextActive
                         ]}>
                           {option.label}
@@ -212,35 +214,35 @@ export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugar
 
                 {/* Time */}
                 <View style={styles.inputSection}>
-                  <Text style={styles.label}>Time</Text>
-                  <TouchableOpacity style={styles.timeButton}>
+                  <Text style={[styles.label, { color: colors.text }]}>Time</Text>
+                  <TouchableOpacity style={[styles.timeButton, { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F9FAFB', borderColor: colors.border }]}>
                     <Ionicons name="time" size={20} color="#E91E63" />
-                    <Text style={styles.timeText}>{formatTime(time)}</Text>
-                    <Text style={styles.timeLabel}>Now</Text>
+                    <Text style={[styles.timeText, { color: colors.text }]}>{formatTime(time)}</Text>
+                    <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Now</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Notes */}
                 <View style={styles.inputSection}>
-                  <Text style={styles.label}>Notes (Optional)</Text>
+                  <Text style={[styles.label, { color: colors.text }]}>Notes (Optional)</Text>
                   <TextInput
-                    style={styles.notesInput}
+                    style={[styles.notesInput, { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F9FAFB', borderColor: colors.border, color: colors.text }]}
                     value={notes}
                     onChangeText={setNotes}
                     placeholder="Any additional notes..."
                     multiline
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor={colors.textTertiary}
                   />
                 </View>
               </View>
 
               {/* Footer */}
-              <View style={styles.footer}>
+              <View style={[styles.footer, { borderTopColor: colors.border }]}>
                 <TouchableOpacity 
-                  style={styles.cancelButton} 
+                  style={[styles.cancelButton, { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F3F4F6' }]} 
                   onPress={handleClose}
                 >
-                  <Text style={styles.cancelText}>Cancel</Text>
+                  <Text style={[styles.cancelText, { color: colors.text }]}>Cancel</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity 
@@ -255,7 +257,7 @@ export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugar
                   <Text style={styles.saveText}>Save Reading</Text>
                 </TouchableOpacity>
               </View>
-            </LinearGradient>
+            </View>
           </Animated.View>
         </KeyboardAvoidingView>
       </Animated.View>

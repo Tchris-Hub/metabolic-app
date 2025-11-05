@@ -44,6 +44,7 @@ export default function RecipeCard({ recipe, onPress, index }: RecipeCardProps) 
   }, [index]);
 
   const handlePress = async () => {
+    console.log('🍽️ Recipe card clicked:', recipe.name, 'ID:', recipe.id);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     Animated.sequence([
@@ -60,7 +61,9 @@ export default function RecipeCard({ recipe, onPress, index }: RecipeCardProps) 
       }),
     ]).start();
     
+    console.log('🔄 Calling onPress handler...');
     onPress();
+    console.log('✅ onPress called');
   };
 
   const getCategoryColor = () => {

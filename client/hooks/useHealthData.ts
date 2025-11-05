@@ -13,7 +13,7 @@ import {
   removeReading,
   clearReadings,
 } from '../store/slices/healthSlice';
-import { HealthReading } from '../services/firebase/database';
+import { HealthReading } from '../services/supabase/repositories/HealthReadingsRepository';
 
 export const useHealthData = () => {
   const dispatch = useDispatch<AppDispatch>();

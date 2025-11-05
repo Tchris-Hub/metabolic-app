@@ -1,12 +1,12 @@
 export const formatDate = (date: Date, format: 'short' | 'long' | 'time' | 'datetime' = 'short'): string => {
-  const options: Intl.DateTimeFormatOptions = {
+  const optionsMap: Record<'short' | 'long' | 'time' | 'datetime', Intl.DateTimeFormatOptions> = {
     short: { month: 'short', day: 'numeric' },
     long: { year: 'numeric', month: 'long', day: 'numeric' },
     time: { hour: '2-digit', minute: '2-digit' },
     datetime: { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' },
   };
 
-  return date.toLocaleDateString('en-US', options[format]);
+  return date.toLocaleDateString('en-US', optionsMap[format]);
 };
 
 export const formatTime = (date: Date, format: '12h' | '24h' = '12h'): string => {

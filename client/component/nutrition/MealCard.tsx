@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ViewStyle, TextStyle, ImageStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Card from '../ui/Card';
+import Card from '../ui/card';
 
 interface MealCardProps {
   title: string;
@@ -64,7 +64,7 @@ export default function MealCard({
     ...style,
   });
 
-  const getImageStyle = (): ViewStyle => ({
+  const getImageStyle = (): ImageStyle => ({
     width: '100%',
     height: 120,
     borderRadius: 8,
@@ -249,7 +249,7 @@ export default function MealCard({
               }}
             />
             <Text style={getDifficultyTextStyle()}>
-              {difficulty?.charAt(0).toUpperCase() + difficulty?.slice(1)}
+              {(difficulty || '').charAt(0).toUpperCase() + (difficulty || '').slice(1)}
             </Text>
           </View>
 

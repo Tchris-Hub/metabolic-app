@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -27,7 +28,9 @@ export default function DisclaimerConsentScreen() {
   const timeOk = Date.now() - startTs >= minReadMs;
   const canAccept = allRequiredChecked && timeOk;
 
-  const accept = () => {
+  const accept = async () => {
+    // User accepted terms, show welcome screen with Sign In / Create Account options
+    // Note: Don't set onboardingComplete yet - only after profile + goals
     router.replace('/screens/auth/welcome-screen');
   };
 

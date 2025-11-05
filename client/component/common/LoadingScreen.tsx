@@ -1,8 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import LottieView from 'lottie-react-native';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
 interface LoadingScreenProps {
   message?: string;
@@ -15,12 +12,7 @@ export default function LoadingScreen({
 }: LoadingScreenProps) {
   return (
     <View style={[styles.container, fullScreen && styles.fullScreen]}>
-      <LottieView
-        source={require('../../assets/lottie/loading.json')}
-        autoPlay
-        loop
-        style={styles.animation}
-      />
+      <ActivityIndicator size="large" color="#2196F3" />
       <Text style={styles.message}>{message}</Text>
     </View>
   );
@@ -40,10 +32,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 9999,
-  },
-  animation: {
-    width: 200,
-    height: 200,
   },
   message: {
     fontSize: 18,

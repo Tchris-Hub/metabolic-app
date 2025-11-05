@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import AdvancedLineChart from '../../component/charts/AdvancedLineChart';
+import { useAuth } from '../../contexts/AuthContext';
+import { HealthReadingsRepository } from '../../services/supabase/repositories/HealthReadingsRepository';
+import BloodSugarModal from '../../component/modals/BloodSugarModal';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -25,18 +30,30 @@ interface Reading {
 }
 
 export default function BloodSugarDetailScreen() {
-  const [filterRange, setFilterRange] = useState('7days');
-  const [readings] = useState<Reading[]>([
-    { id: '1', value: 124, mealTiming: 'after-meal', time: new Date(2024, 0, 15, 14, 30), notes: 'After lunch' },
-    { id: '2', value: 95, mealTiming: 'fasting', time: new Date(2024, 0, 15, 7, 0) },
-    { id: '3', value: 118, mealTiming: 'before-meal', time: new Date(2024, 0, 14, 18, 0) },
-    { id: '4', value: 102, mealTiming: 'fasting', time: new Date(2024, 0, 14, 7, 15) },
-    { id: '5', value: 135, mealTiming: 'after-meal', time: new Date(2024, 0, 13, 20, 30) },
-    { id: '6', value: 88, mealTiming: 'fasting', time: new Date(2024, 0, 13, 7, 0) },
-    { id: '7', value: 110, mealTiming: 'before-meal', time: new Date(2024, 0, 12, 12, 0) },
-  ]);
+  const { isDarkMode, colors, gradients } = useTheme();
+  const [filterRange, setFilterRange] = useState<'7days' | '30days' | '3months'>('7days');
+  const { user } = useAuth();
+  const [readings, setReadings] = useState<Reading[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const filterOptions = [
+  const days = useMemo(() => (filterRange === '7days' ? 7 : filterRange === '30days' ? 30 : 90), [filterRange]);
+
+  const load = async () => {
+    if (!user) return;
+    const rows = await HealthReadingsRepository.getReadingsByType(user.id, 'bloodSugar', { days });
+    const mapped: Reading[] = rows.map((r: any) => ({
+      id: r.id,
+      value: r.value,
+      mealTiming: r.metadata?.meal_context || 'unspecified',
+      time: new Date(r.timestamp),
+      notes: r.notes || undefined,
+    }));
+    setReadings(mapped);
+  };
+
+  useEffect(() => { load(); }, [user, days]);
+
+  const filterOptions: { value: '7days' | '30days' | '3months'; label: string }[] = [
     { value: '7days', label: '7 Days' },
     { value: '30days', label: '30 Days' },
     { value: '3months', label: '3 Months' },
@@ -83,12 +100,18 @@ export default function BloodSugarDetailScreen() {
     return Math.round((inRange / readings.length) * 100);
   };
 
-  // Advanced chart data
-  const chartData = readings.slice(0, 7).reverse().map(r => ({
+  // Advanced chart data with safe fallback (chart requires >= 2 points)
+  const baseChartData = readings.slice(0, 7).reverse().map(r => ({
     value: r.value,
     label: formatDate(r.time),
     color: getValueColor(r.value),
   }));
+  const chartData = baseChartData.length >= 2
+    ? baseChartData
+    : [
+        { value: 0, label: '', color: '#E5E7EB' },
+        { value: 0, label: '', color: '#E5E7EB' },
+      ];
 
   const handleExport = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -96,13 +119,39 @@ export default function BloodSugarDetailScreen() {
     console.log('Exporting blood sugar data...');
   };
 
+  const handleAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setModalVisible(true);
+  };
+
+  const handleSave = async (data: any) => {
+    if (!user) return;
+    try {
+      const value = parseFloat(data.value);
+      const id = await HealthReadingsRepository.saveBloodSugarReading({
+        user_id: user.id,
+        value,
+        unit: data.unit || 'mg/dL',
+        meal_context: data.mealContext,
+        notes: data.notes,
+      });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Saved', 'Blood sugar reading saved successfully.');
+      setModalVisible(false);
+      await load();
+    } catch (e: any) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', e?.message || 'Failed to save blood sugar reading.');
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
       
       {/* Header */}
       <LinearGradient
-        colors={['#FCE4EC', '#FFFFFF']}
+        colors={isDarkMode ? ['#7C2D12', '#991B1B'] : ['#FCE4EC', '#FFFFFF']}
         style={styles.headerGradient}
       >
         <View style={styles.header}>
@@ -113,19 +162,19 @@ export default function BloodSugarDetailScreen() {
               router.back();
             }}
           >
-            <Ionicons name="chevron-back" size={24} color="#E91E63" />
+            <Ionicons name="chevron-back" size={24} color={isDarkMode ? '#FCA5A5' : '#E91E63'} />
           </TouchableOpacity>
           
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Blood Sugar</Text>
-            <Text style={styles.headerSubtitle}>Glucose Tracking</Text>
+            <Text style={[styles.headerTitle, { color: isDarkMode ? '#FEE2E2' : '#1F2937' }]}>Blood Sugar</Text>
+            <Text style={[styles.headerSubtitle, { color: isDarkMode ? '#FECACA' : '#6B7280' }]}>Glucose Tracking</Text>
           </View>
           
           <TouchableOpacity 
             style={styles.exportButton}
             onPress={handleExport}
           >
-            <Ionicons name="download-outline" size={20} color="#E91E63" />
+            <Ionicons name="download-outline" size={20} color={isDarkMode ? '#FCA5A5' : '#E91E63'} />
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -133,17 +182,17 @@ export default function BloodSugarDetailScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{getAverageReading()}</Text>
-            <Text style={styles.statLabel}>Avg mg/dL</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{getAverageReading()}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Avg mg/dL</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.statValue, { color: '#4CAF50' }]}>{getInRangePercentage()}%</Text>
-            <Text style={styles.statLabel}>In Range</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>In Range</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{readings.length}</Text>
-            <Text style={styles.statLabel}>Readings</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{readings.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Readings</Text>
           </View>
         </View>
 
@@ -154,6 +203,7 @@ export default function BloodSugarDetailScreen() {
               key={option.value}
               style={[
                 styles.filterButton,
+                { backgroundColor: isDarkMode ? colors.surfaceSecondary : '#F9FAFB', borderColor: colors.border },
                 filterRange === option.value && styles.filterButtonActive
               ]}
               onPress={() => {
@@ -244,10 +294,7 @@ export default function BloodSugarDetailScreen() {
       {/* Floating Add Button */}
       <TouchableOpacity 
         style={styles.fab}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          // TODO: Open blood sugar modal
-        }}
+        onPress={handleAdd}
       >
         <LinearGradient
           colors={['#E91E63', '#C2185B']}
@@ -256,6 +303,12 @@ export default function BloodSugarDetailScreen() {
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </LinearGradient>
       </TouchableOpacity>
+
+      <BloodSugarModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSave={handleSave}
+      />
     </View>
   );
 }

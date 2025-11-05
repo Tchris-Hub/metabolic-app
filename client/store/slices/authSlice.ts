@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { AuthService, AuthUser, SignupData, LoginData, ProfileData } from '../../services/firebase/auth';
+import { AuthService, AuthUser, SignupData, LoginData, ProfileData } from '../../services/supabase/auth';
 
 interface AuthState {
   user: AuthUser | null;
@@ -22,9 +22,9 @@ export const signup = createAsyncThunk(
   'auth/signup',
   async (data: SignupData, { rejectWithValue }) => {
     try {
-      const userCredential = await AuthService.signup(data);
-      const user = AuthService.getUserData(userCredential.user);
-      return user;
+      const { user } = await AuthService.signup(data);
+      const userData = AuthService.getUserData(user);
+      return userData;
     } catch (error) {
       return rejectWithValue(error as string);
     }
@@ -35,9 +35,9 @@ export const login = createAsyncThunk(
   'auth/login',
   async (data: LoginData, { rejectWithValue }) => {
     try {
-      const userCredential = await AuthService.login(data);
-      const user = AuthService.getUserData(userCredential.user);
-      return user;
+      const { user } = await AuthService.login(data);
+      const userData = AuthService.getUserData(user);
+      return userData;
     } catch (error) {
       return rejectWithValue(error as string);
     }
@@ -81,12 +81,8 @@ export const updateUserProfile = createAsyncThunk(
   'auth/updateUserProfile',
   async (data: ProfileData, { rejectWithValue }) => {
     try {
-      await AuthService.updateUserProfile(data);
-      const currentUser = AuthService.getCurrentUser();
-      if (currentUser) {
-        return AuthService.getUserData(currentUser);
-      }
-      throw new Error('No user found');
+      const user = await AuthService.updateUserProfile(data);
+      return AuthService.getUserData(user);
     } catch (error) {
       return rejectWithValue(error as string);
     }
@@ -97,7 +93,7 @@ export const checkAuthState = createAsyncThunk(
   'auth/checkAuthState',
   async (_, { rejectWithValue }) => {
     try {
-      const currentUser = AuthService.getCurrentUser();
+      const currentUser = await AuthService.getCurrentUser();
       if (currentUser) {
         return AuthService.getUserData(currentUser);
       }

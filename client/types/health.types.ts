@@ -20,7 +20,8 @@ export type HealthUnit =
   | 'bpm' 
   | 'hours' 
   | 'ml' 
-  | 'oz';
+  | 'oz'
+  | string;
 
 export interface HealthReading {
   id: string;
@@ -99,7 +100,7 @@ export interface WaterReading extends HealthReading {
   beverageType?: 'water' | 'coffee' | 'tea' | 'juice' | 'soda';
 }
 
-export interface MedicationReading extends HealthReading {
+export interface MedicationReading extends Omit<HealthReading, 'unit'> {
   type: 'medication';
   medicationName: string;
   dosage: number;

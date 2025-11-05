@@ -1,112 +1,103 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  hasCompletedOnboarding: boolean;
-}
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { User } from '@supabase/supabase-js';  // Full Supabase User type
+import { AuthService } from '../services/supabase/auth';
 
 interface AuthContextType {
   user: User | null;
-  isLoading: boolean;
   isAuthenticated: boolean;
-  hasCompletedOnboarding: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
+  signup: (email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
-  completeOnboarding: () => Promise<void>;
-  setUser: (user: User | null) => void;
+  googleSignIn: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const currentUser = await AuthService.getCurrentUser();
+        setUser(currentUser);
+      } catch (error) {
+        console.error('Error loading user:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = AuthService.onAuthStateChange((newUser) => {
+      setUser(newUser);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const login = async (email: string, password: string) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const userData: User = {
-        id: '1',
-        email,
-        name: email.split('@')[0],
-        hasCompletedOnboarding: true, // Assume returning users have completed onboarding
-      };
-      
-      setUser(userData);
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      const { user: authUser } = await AuthService.login({ email, password });
+      setUser(authUser);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signup = async (email: string, password: string, name: string) => {
+  const signup = async (email: string, password: string, displayName?: string) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { user: authUser, session } = await AuthService.signup({ email, password, displayName });
       
-      const userData: User = {
-        id: '1',
-        email,
-        name,
-        hasCompletedOnboarding: false, // New users need to complete onboarding
-      };
-      
-      setUser(userData);
-    } catch (error) {
-      console.error('Signup error:', error);
-      throw error;
+      // Only set user if we have a session (email confirmation disabled)
+      // If session is null, email confirmation is required - user must verify email first
+      if (session) {
+        setUser(authUser);
+      } else {
+        // Email confirmation required - don't set user yet
+        console.log('Email confirmation required. Please check your email.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = async () => {
+    setIsLoading(true);
     try {
+      await AuthService.logout();
       setUser(null);
-    } catch (error) {
-      console.error('Logout error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const completeOnboarding = async () => {
-    if (user) {
-      const updatedUser = { ...user, hasCompletedOnboarding: true };
-      setUser(updatedUser);
+  const googleSignIn = async (): Promise<string | null> => {
+    try {
+      const { url } = await AuthService.signInWithGoogle();
+      return url;
+    } catch (e) {
+      console.error('Google sign-in failed', e);
+      return null;
     }
   };
 
-  const value: AuthContextType = {
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-    hasCompletedOnboarding: user?.hasCompletedOnboarding ?? false,
-    login,
-    signup,
-    logout,
-    completeOnboarding,
-    setUser,
-  };
+  const isAuthenticated = !!user;
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, signup, logout, googleSignIn }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
+  return context;
 };

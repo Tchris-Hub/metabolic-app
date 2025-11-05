@@ -1,14 +1,29 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { DatabaseService, MealPlan, Meal } from '../../services/firebase/database';
+import { DatabaseService, MealPlan } from '../../services/supabase/database';
+import { SpoonacularService } from '../../services/apis/SpoonacularService';
+import { Recipe } from '../../data/recipes';
+
+// Temporary Meal type until we update the database service
+interface Meal {
+  id: string;
+  name: string;
+  [key: string]: any;
+}
 
 interface MealState {
   mealPlans: MealPlan[];
   currentMealPlan: MealPlan | null;
   isLoading: boolean;
   error: string | null;
-  lastSync: Date | null;
+  lastSync: string | null;
   favoriteMeals: Meal[];
   recentMeals: Meal[];
+  // API integration state
+  onlineRecipes: Recipe[];
+  currentRecipeDetails: Recipe | null;
+  apiLoading: boolean;
+  apiError: string | null;
+  searchQuery: string;
 }
 
 const initialState: MealState = {
@@ -19,6 +34,12 @@ const initialState: MealState = {
   lastSync: null,
   favoriteMeals: [],
   recentMeals: [],
+  // API integration state
+  onlineRecipes: [],
+  currentRecipeDetails: null,
+  apiLoading: false,
+  apiError: null,
+  searchQuery: '',
 };
 
 // Async thunks
@@ -70,6 +91,48 @@ export const deleteMealPlan = createAsyncThunk(
   }
 );
 
+export const searchRecipesOnline = createAsyncThunk(
+  'meal/searchRecipesOnline',
+  async (params: { query: string; filters?: any }, { rejectWithValue }) => {
+    try {
+      const recipes = await SpoonacularService.searchRecipes(params.query, params.filters);
+      return recipes;
+    } catch (error) {
+      return rejectWithValue(error as string);
+    }
+  }
+);
+
+export const getRandomRecipesOnline = createAsyncThunk(
+  'meal/getRandomRecipesOnline',
+  async (params: { count?: number; tags?: string[] }, { rejectWithValue }) => {
+    try {
+      const recipes = await SpoonacularService.getRandomRecipes(
+        params.count || 10,
+        params.tags
+      );
+      return recipes;
+    } catch (error) {
+      return rejectWithValue(error as string);
+    }
+  }
+);
+
+export const getRecipeDetailsById = createAsyncThunk(
+  'meal/getRecipeDetailsById',
+  async (recipeId: number, { rejectWithValue }) => {
+    try {
+      const recipe = await SpoonacularService.getRecipeById(recipeId);
+      if (!recipe) {
+        throw new Error('Recipe not found');
+      }
+      return recipe;
+    } catch (error) {
+      return rejectWithValue(error as string);
+    }
+  }
+);
+
 export const syncMealData = createAsyncThunk(
   'meal/syncMealData',
   async (userId: string, { rejectWithValue }) => {
@@ -77,7 +140,7 @@ export const syncMealData = createAsyncThunk(
       const mealPlans = await DatabaseService.getMealPlans(userId);
       return {
         mealPlans,
-        lastSync: new Date(),
+        lastSync: new Date().toISOString(),
       };
     } catch (error) {
       return rejectWithValue(error as string);
@@ -221,6 +284,47 @@ const mealSlice = createSlice({
       .addCase(syncMealData.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+      })
+      // Search recipes online
+      .addCase(searchRecipesOnline.pending, (state) => {
+        state.apiLoading = true;
+        state.apiError = null;
+      })
+      .addCase(searchRecipesOnline.fulfilled, (state, action) => {
+        state.apiLoading = false;
+        state.onlineRecipes = action.payload;
+      })
+      .addCase(searchRecipesOnline.rejected, (state, action) => {
+        state.apiLoading = false;
+        state.apiError = action.payload as string;
+      })
+      // Get random recipes online
+      .addCase(getRandomRecipesOnline.pending, (state) => {
+        state.apiLoading = true;
+        state.apiError = null;
+      })
+      .addCase(getRandomRecipesOnline.fulfilled, (state, action) => {
+        state.apiLoading = false;
+        state.onlineRecipes = action.payload;
+      })
+      .addCase(getRandomRecipesOnline.rejected, (state, action) => {
+        state.apiLoading = false;
+        state.apiError = action.payload as string;
+      })
+      // Get recipe details by ID
+      .addCase(getRecipeDetailsById.pending, (state) => {
+        state.apiLoading = true;
+        state.apiError = null;
+        state.currentRecipeDetails = null;
+      })
+      .addCase(getRecipeDetailsById.fulfilled, (state, action) => {
+        state.apiLoading = false;
+        state.currentRecipeDetails = action.payload;
+      })
+      .addCase(getRecipeDetailsById.rejected, (state, action) => {
+        state.apiLoading = false;
+        state.apiError = action.payload as string;
+        state.currentRecipeDetails = null;
       });
   },
 });
@@ -238,5 +342,5 @@ export const {
   clearFavorites,
   clearRecent,
 } = mealSlice.actions;
-export default mealSlice.reducer;
 
+export default mealSlice.reducer;

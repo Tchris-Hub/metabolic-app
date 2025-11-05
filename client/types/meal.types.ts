@@ -185,12 +185,11 @@ export interface MealSearchFilters {
 }
 
 export interface MealRecommendation {
-  id: string;
-  userId: string;
-  meal: Meal;
+  recipe: Meal;
   reason: string;
+  priority: number;
+  healthFlags: string[];
   confidence: number;
-  createdAt: Date;
 }
 
 export interface MealPlanState {

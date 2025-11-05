@@ -35,15 +35,20 @@ export default function AdvancedLineChart({
   const chartHeight = height - 60;
   const padding = 20;
   
-  // Calculate min and max values
-  const values = data.map(d => d.value);
-  const maxValue = Math.max(...values) * 1.1;
-  const minValue = Math.min(...values) * 0.9;
-  const valueRange = maxValue - minValue;
+  // Calculate min and max values with safe fallbacks
+  const hasData = data && data.length > 0;
+  const values = hasData ? data.map(d => d.value) : [0, 0];
+  const maxValueRaw = Math.max(...values);
+  const minValueRaw = Math.min(...values);
+  const maxValue = (isFinite(maxValueRaw) ? maxValueRaw : 0) * 1.1;
+  const minValue = (isFinite(minValueRaw) ? minValueRaw : 0) * 0.9;
+  const valueRangeRaw = maxValue - minValue;
+  const valueRange = valueRangeRaw === 0 ? 1 : valueRangeRaw;
   
-  // Calculate points
-  const points = data.map((point, index) => {
-    const x = padding + (index * (chartWidth - padding * 2)) / (data.length - 1);
+  // Calculate points (avoid divide-by-zero when only 1 point)
+  const denom = Math.max(1, (data?.length || 0) - 1);
+  const points = (data || []).map((point, index) => {
+    const x = padding + (index * (chartWidth - padding * 2)) / denom;
     const y = chartHeight - padding - ((point.value - minValue) / valueRange) * (chartHeight - padding * 2);
     return { x, y, ...point };
   });
@@ -72,10 +77,14 @@ export default function AdvancedLineChart({
   
   // Create area fill path
   const createAreaPath = () => {
+    if (points.length === 0) return '';
+    if (points.length === 1) {
+      const p = points[0];
+      return `M ${p.x} ${p.y} L ${p.x} ${chartHeight - padding} Z`;
+    }
     const linePath = createSmoothPath();
     const lastPoint = points[points.length - 1];
     const firstPoint = points[0];
-    
     return `${linePath} L ${lastPoint.x} ${chartHeight - padding} L ${firstPoint.x} ${chartHeight - padding} Z`;
   };
   
@@ -203,7 +212,7 @@ export default function AdvancedLineChart({
       </View>
       
       {/* Selected point tooltip */}
-      {selectedPoint !== null && (
+      {selectedPoint !== null && points[selectedPoint] && (
         <View style={[
           styles.tooltip,
           {

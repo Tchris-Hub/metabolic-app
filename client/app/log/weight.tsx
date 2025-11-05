@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,17 +13,30 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import AdvancedLineChart from '../../component/charts/AdvancedLineChart';
+import { useAuth } from '../../contexts/AuthContext';
+import { HealthReadingsRepository } from '../../services/supabase/repositories/HealthReadingsRepository';
+import WeightModal from '../../component/modals/WeightModal';
 
 export default function WeightDetailScreen() {
-  const readings = [
-    { id: '1', value: 165, time: new Date(2024, 0, 15) },
-    { id: '2', value: 164.5, time: new Date(2024, 0, 14) },
-    { id: '3', value: 165.2, time: new Date(2024, 0, 13) },
-    { id: '4', value: 166, time: new Date(2024, 0, 12) },
-    { id: '5', value: 165.8, time: new Date(2024, 0, 11) },
-    { id: '6', value: 166.5, time: new Date(2024, 0, 10) },
-    { id: '7', value: 167, time: new Date(2024, 0, 9) },
-  ];
+  type Reading = { id: string; value: number; unit: string; time: Date; notes?: string };
+  const { user } = useAuth();
+  const [readings, setReadings] = useState<Reading[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const load = async () => {
+    if (!user) return;
+    const rows = await HealthReadingsRepository.getReadingsByType(user.id, 'weight', { days: 30 });
+    const mapped: Reading[] = rows.map((r: any) => ({
+      id: r.id,
+      value: r.value,
+      unit: r.unit,
+      time: new Date(r.timestamp),
+      notes: r.notes || undefined,
+    }));
+    setReadings(mapped);
+  };
+
+  useEffect(() => { load(); }, [user]);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -33,6 +47,33 @@ export default function WeightDetailScreen() {
     label: formatDate(r.time),
     color: '#4CAF50',
   }));
+
+  const handleAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setModalVisible(true);
+  };
+
+  const handleSave = async (data: { weight: string; unit: 'kg' | 'lbs'; time: Date; bodyFat?: string }) => {
+    if (!user) return;
+    try {
+      const weightNum = parseFloat(data.weight);
+      await HealthReadingsRepository.saveWeightReading({
+        user_id: user.id,
+        weight: weightNum,
+        unit: data.unit,
+        timestamp: data.time?.toISOString(),
+        notes: undefined,
+        body_fat: data.bodyFat ? parseFloat(data.bodyFat) : undefined,
+      });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Saved', 'Weight reading saved successfully.');
+      setModalVisible(false);
+      await load();
+    } catch (e: any) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', e?.message || 'Failed to save weight reading.');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -98,11 +139,16 @@ export default function WeightDetailScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab}>
+      <TouchableOpacity style={styles.fab} onPress={handleAdd}>
         <LinearGradient colors={['#4CAF50', '#388E3C']} style={styles.fabGradient}>
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </LinearGradient>
       </TouchableOpacity>
+      <WeightModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSave={handleSave}
+      />
     </View>
   );
 }

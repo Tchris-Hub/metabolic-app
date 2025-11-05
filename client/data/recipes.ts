@@ -28,6 +28,16 @@ export interface Recipe {
   videoUrl?: string;
   rating: number;
   reviews: number;
+  // Health-related properties for recommendations
+  glycemicIndex?: number; // 0-100 scale
+  healthCompatibility?: {
+    bloodSugarFriendly: boolean;
+    weightManagement: boolean;
+    bloodPressureFriendly: boolean;
+    heartHealthy: boolean;
+    diabetesFriendly: boolean;
+  };
+  healthScore?: number; // Overall health score 0-100
 }
 
 export const recipes: Recipe[] = [
@@ -71,7 +81,16 @@ export const recipes: Recipe[] = [
     ],
     tags: ['vegetarian', 'gluten-free', 'high-fiber', 'mediterranean'],
     rating: 4.5,
-    reviews: 128
+    reviews: 128,
+    glycemicIndex: 35, // Low GI
+    healthCompatibility: {
+      bloodSugarFriendly: true,
+      weightManagement: true,
+      bloodPressureFriendly: true,
+      heartHealthy: true,
+      diabetesFriendly: true,
+    },
+    healthScore: 95,
   },
   {
     id: 'baked-salmon',
@@ -113,7 +132,16 @@ export const recipes: Recipe[] = [
     ],
     tags: ['high-protein', 'omega-3', 'low-carb', 'gluten-free'],
     rating: 4.7,
-    reviews: 89
+    reviews: 89,
+    glycemicIndex: 15, // Very low GI
+    healthCompatibility: {
+      bloodSugarFriendly: true,
+      weightManagement: true,
+      bloodPressureFriendly: true,
+      heartHealthy: true,
+      diabetesFriendly: true,
+    },
+    healthScore: 98,
   },
   {
     id: 'chia-pudding',
@@ -151,7 +179,16 @@ export const recipes: Recipe[] = [
     ],
     tags: ['vegan', 'gluten-free', 'high-fiber', 'antioxidants'],
     rating: 4.3,
-    reviews: 156
+    reviews: 156,
+    glycemicIndex: 25, // Low GI
+    healthCompatibility: {
+      bloodSugarFriendly: true,
+      weightManagement: true,
+      bloodPressureFriendly: false,
+      heartHealthy: true,
+      diabetesFriendly: true,
+    },
+    healthScore: 88,
   }
 ];
 

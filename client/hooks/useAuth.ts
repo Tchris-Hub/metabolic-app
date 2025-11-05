@@ -13,7 +13,7 @@ import {
   setUser,
   setEmailVerified,
 } from '../store/slices/authSlice';
-import { AuthUser, SignupData, LoginData, ProfileData } from '../services/firebase/auth';
+import { AuthUser, SignupData, LoginData, ProfileData, AuthService } from '../services/supabase/auth';
 
 export const useAuth = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -111,6 +111,24 @@ export const useAuth = () => {
     [dispatch]
   );
 
+  const googleSignIn = useCallback(async (): Promise<string | null> => {
+    try {
+      const { url } = await AuthService.signInWithGoogle();
+      return url;
+    } catch (e) {
+      throw e;
+    }
+  }, []);
+
+  const oauthSignIn = useCallback(async (provider: 'google' | 'apple' | 'facebook'): Promise<string | null> => {
+    try {
+      const { url } = await AuthService.signInWithOAuth(provider);
+      return url;
+    } catch (e) {
+      throw e;
+    }
+  }, []);
+
   return {
     // State
     user,
@@ -130,6 +148,10 @@ export const useAuth = () => {
     clearError: handleClearError,
     setUser: handleSetUser,
     setEmailVerified: handleSetEmailVerified,
+
+    // OAuth
+    googleSignIn,
+    oauthSignIn,
   };
 };
 

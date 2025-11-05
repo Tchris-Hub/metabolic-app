@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Input from '../ui/Input';
+import Input from '../ui/input';
 
 interface ReadingInputProps {
   label: string;
