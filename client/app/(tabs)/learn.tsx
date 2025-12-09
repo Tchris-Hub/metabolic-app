@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Image,
   Linking,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,14 +20,16 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { educationArticles, getFeaturedArticle } from '../../data/education/articles';
 import { healthQuizzes } from '../../data/education/quizzes';
-import LoadingScreen from '../../component/common/LoadingScreen';
+import Skeleton, { CardSkeleton, ListSkeleton } from '../../component/ui/Skeleton';
 import { PersonalizedEducationService } from '../../services/PersonalizedEducationService';
 import { YouTubeService, YouTubeVideo } from '../../services/apis/YouTubeService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function LearnScreen() {
   const { isDarkMode, colors, gradients } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,9 +138,65 @@ export default function LearnScreen() {
     }
   };
 
-  // Show loading screen while content is being loaded
+  // Render skeleton loading state
+  const renderLoadingSkeleton = () => (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+      
+      {/* Hero Section Skeleton */}
+      <LinearGradient
+        colors={gradients.learn as [string, string, ...string[]]}
+        style={[styles.heroSection, { paddingTop: insets.top + 16 }]}
+      >
+        <View style={styles.heroTop}>
+          <View>
+            <Text style={styles.heroGreeting}>Loading...</Text>
+            <Text style={styles.heroTitle}>Personalizing for you</Text>
+          </View>
+        </View>
+        <View style={styles.statsRow}>
+          {[1, 2, 3].map((_, index) => (
+            <View key={index} style={[styles.statCard, { opacity: 0.6 }]}>
+              <Skeleton width={40} height={24} borderRadius={4} />
+              <View style={{ height: 8 }} />
+              <Skeleton width={50} height={12} borderRadius={4} />
+            </View>
+          ))}
+        </View>
+      </LinearGradient>
+
+      {/* Featured Article Skeleton */}
+      <View style={styles.featuredSection}>
+        <Skeleton width={150} height={20} borderRadius={4} style={{ marginBottom: 16 }} />
+        <View style={[styles.featuredCard, { backgroundColor: colors.surface }]}>
+          <View style={styles.featuredContent}>
+            <Skeleton width={56} height={56} borderRadius={12} />
+            <View style={styles.featuredTextContent}>
+              <Skeleton width="90%" height={16} borderRadius={4} style={{ marginBottom: 8 }} />
+              <Skeleton width="100%" height={12} borderRadius={4} style={{ marginBottom: 4 }} />
+              <Skeleton width="70%" height={12} borderRadius={4} />
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Categories Grid Skeleton */}
+      <View style={styles.categoriesSection}>
+        <Skeleton width={120} height={20} borderRadius={4} style={{ marginBottom: 16 }} />
+        <View style={styles.categoriesGrid}>
+          {[1, 2, 3, 4].map((_, index) => (
+            <View key={index} style={styles.categoryWrapper}>
+              <CardSkeleton style={{ minHeight: 160 }} />
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+
+  // Show skeleton loading screen while content is being loaded
   if (loading) {
-    return <LoadingScreen message="Personalizing your learning experience..." />;
+    return renderLoadingSkeleton();
   }
 
   // Get featured article from personalized content
@@ -183,7 +242,7 @@ export default function LearnScreen() {
         {/* Hero Header */}
         <LinearGradient
           colors={gradients.learn as [string, string, ...string[]]}
-          style={styles.heroSection}
+          style={[styles.heroSection, { paddingTop: insets.top + 16 }]}
         >
           <Animated.View
             style={{
@@ -341,14 +400,32 @@ export default function LearnScreen() {
         </View>
 
         {/* YouTube Educational Videos */}
-        {youtubeVideos.length > 0 && (
-          <View style={styles.videosSection}>
-            <View style={styles.sectionHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="logo-youtube" size={24} color="#FF0000" />
-                <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Video Tutorials</Text>
-              </View>
+        <View style={styles.videosSection}>
+          <View style={styles.sectionHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="logo-youtube" size={24} color="#FF0000" />
+              <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Video Tutorials</Text>
             </View>
+          </View>
+          
+          {videosLoading ? (
+            // Video loading skeleton
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
+            >
+              {[1, 2, 3].map((_, index) => (
+                <View key={index} style={[styles.videoCard, { backgroundColor: colors.surface }]}>
+                  <Skeleton width={280} height={160} borderRadius={0} />
+                  <View style={styles.videoInfo}>
+                    <Skeleton width="90%" height={14} borderRadius={4} style={{ marginBottom: 8 }} />
+                    <Skeleton width="60%" height={12} borderRadius={4} />
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          ) : youtubeVideos.length > 0 ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -399,8 +476,30 @@ export default function LearnScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
-        )}
+          ) : (
+            // Empty state for no videos
+            <View style={[styles.emptyVideosState, { backgroundColor: colors.surface }]}>
+              <Text style={styles.emptyVideosEmoji}>📺</Text>
+              <Text style={[styles.emptyVideosTitle, { color: colors.text }]}>No videos available</Text>
+              <Text style={[styles.emptyVideosText, { color: colors.textSecondary }]}>
+                Check back later for educational video content
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyVideosButton}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  loadYouTubeVideos();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading videos"
+                accessibilityHint="Tap to try loading videos again"
+              >
+                <Ionicons name="refresh" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.emptyVideosButtonText}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -804,5 +903,44 @@ const styles = StyleSheet.create({
   videoMetaText: {
     fontSize: 11,
     color: '#9CA3AF',
+  },
+  // Empty videos state
+  emptyVideosState: {
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyVideosEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyVideosTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  emptyVideosText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  emptyVideosButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#9C27B0',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  emptyVideosButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

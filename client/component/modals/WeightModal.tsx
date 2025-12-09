@@ -10,6 +10,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -201,7 +202,7 @@ export default function WeightModal({ visible, onClose, onSave }: WeightModalPro
               </View>
 
               {/* Content */}
-              <View style={styles.content}>
+              <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* Weight Input */}
                 <View style={styles.inputSection}>
                   <Text style={styles.label}>Weight</Text>
@@ -284,7 +285,7 @@ export default function WeightModal({ visible, onClose, onSave }: WeightModalPro
                     Keep logging daily to see your weight trends and progress toward your goals!
                   </Text>
                 </View>
-              </View>
+              </ScrollView>
 
               {/* Footer */}
               <View style={styles.footer}>
@@ -370,6 +371,7 @@ const styles = StyleSheet.create({
   },
   content: {
     marginBottom: 24,
+    maxHeight: SCREEN_HEIGHT * 0.5,
   },
   inputSection: {
     marginBottom: 24,

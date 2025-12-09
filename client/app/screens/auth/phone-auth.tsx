@@ -6,8 +6,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { AuthService } from '../../../services/supabase/auth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PhoneAuthScreen() {
+  const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'enter-phone' | 'enter-code'>('enter-phone');
@@ -56,8 +58,8 @@ export default function PhoneAuthScreen() {
       <StatusBar style="light" />
       <ExpoLinearGradient colors={[ '#2196F3', '#4CAF50' ] as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', inset: 0 as any }} />
 
-      <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
+      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 16 }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ position: 'absolute', left: 16, top: insets.top + 16, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>

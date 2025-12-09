@@ -9,6 +9,7 @@ import { launchImageLibrary, launchCamera, ImagePickerResponse, MediaType } from
 import { supabase } from '../../../services/supabase/config';
 import { useAuth } from '../../../contexts/AuthContext';
 import { AuthService } from '../../../services/supabase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -465,12 +466,14 @@ export default function ProfileSetupScreen() {
       console.log('✅ Data length:', data?.length);
 
       console.log('✅ Profile saved successfully!');
+      
+      // Mark onboarding as complete so user doesn't get sent back to onboarding on reload
+      await AsyncStorage.setItem('onboardingComplete', 'true');
+      console.log('✅ Onboarding marked as complete');
+      
       Alert.alert('Success', 'Profile saved!', [
         { text: 'Continue', onPress: () => router.replace('/(tabs)') }
       ]);
-
-      // Navigate to home tabs
-      // router.replace('/(tabs)');
     } catch (error: any) {
       console.error('❌ UNEXPECTED ERROR:');
       console.error('Error name:', error.name);

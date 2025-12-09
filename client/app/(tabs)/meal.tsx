@@ -11,6 +11,7 @@ import {
   FlatList,
   RefreshControl,
   Image,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,7 +21,7 @@ import * as Haptics from 'expo-haptics';
 import { lowCarbRecipes, searchRecipes, Recipe } from '../../data/recipes/lowCarbRecipes';
 import RecipeCard from '../../component/nutrition/RecipeCard';
 import RecommendationCard from '../../component/nutrition/RecommendationCard';
-import LoadingScreen from '../../component/common/LoadingScreen';
+import { CardSkeleton } from '../../component/ui/Skeleton';
 import { useTheme } from '../../context/ThemeContext';
 import { MealRecommendationService, MealRecommendation } from '../../services/MealRecommendationService';
 import { HealthAggregationService } from '../../services/HealthAggregationService';
@@ -30,11 +31,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
 import { searchRecipesOnline, getRandomRecipesOnline } from '../../store/slices/mealSlice';
 import { recipes } from '../../data/recipes';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 function MealScreen() {
   const { isDarkMode, colors, gradients } = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
 
   const [loading, setLoading] = useState(true);
@@ -294,9 +297,59 @@ function MealScreen() {
     }, 2000);
   };
 
-  // Show loading screen while recipes are being loaded
+  // Render skeleton loading state
+  const renderLoadingSkeleton = () => (
+    <View style={styles.container}>
+      {/* Hero Section Skeleton */}
+      <LinearGradient
+        colors={['#FF9800', '#F57C00', '#E65100']}
+        style={[styles.heroSection, { paddingTop: insets.top + 16 }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.foodImageContainer}>
+          <View style={[styles.foodImageWrapper, { opacity: 0.5 }]}>
+            <Text style={styles.foodEmoji}>🍽️</Text>
+          </View>
+        </View>
+        <View style={styles.heroTop}>
+          <View>
+            <Text style={styles.heroGreeting}>Loading...</Text>
+            <Text style={styles.heroTitle}>Finding recipes for you</Text>
+          </View>
+        </View>
+      </LinearGradient>
+
+      {/* Search Skeleton */}
+      <View style={styles.searchWrapper}>
+        <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
+          <Ionicons name="search" size={22} color={isDarkMode ? '#FBBF24' : '#FF9800'} />
+          <View style={{ flex: 1, height: 20, backgroundColor: colors.border, borderRadius: 4, opacity: 0.5 }} />
+        </View>
+      </View>
+
+      {/* Recipe Grid Skeleton */}
+      <View style={styles.recipesSection}>
+        <View style={styles.recipeHeader}>
+          <View>
+            <Text style={[styles.recipesTitle, { color: colors.text }]}>Discover Recipes</Text>
+            <Text style={[styles.recipesSubtitle, { color: colors.textSecondary }]}>Loading...</Text>
+          </View>
+        </View>
+        <View style={styles.recipeGrid}>
+          {[1, 2, 3, 4].map((_, index) => (
+            <View key={index} style={{ width: '48%', marginBottom: 16 }}>
+              <CardSkeleton />
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+
+  // Show skeleton loading screen while recipes are being loaded
   if (loading) {
-    return <LoadingScreen message="Loading delicious recipes..." />;
+    return renderLoadingSkeleton();
   }
 
   return (
@@ -306,7 +359,7 @@ function MealScreen() {
           {/* Hero Section with Orange Gradient */}
           <LinearGradient
             colors={['#FF9800', '#F57C00', '#E65100']}
-            style={styles.heroSection}
+            style={[styles.heroSection, { paddingTop: insets.top + 16 }]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
@@ -336,23 +389,6 @@ function MealScreen() {
               <View>
                 <Text style={styles.heroGreeting} numberOfLines={1}>Good morning! 👋</Text>
                 <Text style={styles.heroTitle} numberOfLines={1}>What would you like to eat?</Text>
-              </View>
-              
-            </View>
-
-            {/* Subtle Stats - Less Prominent */}
-            <View style={styles.statsRow}>
-              <View style={styles.statCardSubtle}>
-                <Text style={styles.statNumberSubtle}>1,247</Text>
-                <Text style={styles.statLabelSubtle}>cal</Text>
-              </View>
-              <View style={styles.statCardSubtle}>
-                <Text style={styles.statNumberSubtle}>8.2g</Text>
-                <Text style={styles.statLabelSubtle}>protein</Text>
-              </View>
-              <View style={styles.statCardSubtle}>
-                <Text style={styles.statNumberSubtle}>12g</Text>
-                <Text style={styles.statLabelSubtle}>carbs</Text>
               </View>
             </View>
           </LinearGradient>
@@ -457,10 +493,26 @@ function MealScreen() {
                 ))}
               </View>
             ) : (
-              <View style={styles.emptyState}>
+              <View style={[styles.emptyState, { backgroundColor: colors.surface, borderRadius: 16, padding: 32 }]}>
                 <Text style={styles.emptyEmoji}>🍽️</Text>
-                <Text style={styles.emptyTitle}>No recipes found</Text>
-                <Text style={styles.emptyText}>Try adjusting your search</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No recipes found</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  Try adjusting your search or filters
+                </Text>
+                <TouchableOpacity
+                  style={[styles.emptyButton, { backgroundColor: isDarkMode ? '#FBBF24' : '#FF9800' }]}
+                  onPress={() => {
+                    setSearchQuery('');
+                    clearFilters();
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear all filters"
+                  accessibilityHint="Tap to reset search and show all recipes"
+                >
+                  <Ionicons name="refresh" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.emptyButtonText}>Clear Filters</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -659,48 +711,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-  },
-
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  // Subtle Stats - Less Prominent
-  statCardSubtle: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 4,
-  },
-  statNumberSubtle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  statLabelSubtle: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.85)',
   },
   // Search
   searchWrapper: {
@@ -1038,7 +1048,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '600',
-  }
+  },
+  // Empty state button
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: 20,
+  },
+  emptyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
 });
 
 export default MealScreen;

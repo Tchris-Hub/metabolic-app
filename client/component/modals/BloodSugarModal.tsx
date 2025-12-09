@@ -10,6 +10,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -160,7 +161,7 @@ export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugar
               </View>
 
               {/* Content */}
-              <View style={styles.content}>
+              <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* Value Input */}
                 <View style={styles.inputSection}>
                   <Text style={[styles.label, { color: colors.text }]}>Glucose Reading</Text>
@@ -234,7 +235,7 @@ export default function BloodSugarModal({ visible, onClose, onSave }: BloodSugar
                     placeholderTextColor={colors.textTertiary}
                   />
                 </View>
-              </View>
+              </ScrollView>
 
               {/* Footer */}
               <View style={[styles.footer, { borderTopColor: colors.border }]}>
@@ -320,6 +321,7 @@ const styles = StyleSheet.create({
   },
   content: {
     marginBottom: 24,
+    maxHeight: SCREEN_HEIGHT * 0.5,
   },
   inputSection: {
     marginBottom: 24,

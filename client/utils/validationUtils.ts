@@ -1,8 +1,60 @@
-export const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+// Validation result interface for consistent return types
+export interface ValidationResult {
+  isValid: boolean;
+  error?: string;
+}
+
+// Password strength interface
+export interface PasswordStrength {
+  level: 'weak' | 'fair' | 'good' | 'strong';
+  score: number; // 0-100
+  suggestions: string[];
+}
+
+/**
+ * Validates email format using regex
+ * Property 5: Email Validation Correctness
+ * For any string input, returns isValid=true only for strings matching standard email format
+ */
+export const validateEmail = (email: string): ValidationResult => {
+  if (!email || typeof email !== 'string') {
+    return { isValid: false, error: 'Email is required' };
+  }
+  
+  const trimmedEmail = email.trim();
+  
+  if (trimmedEmail.length === 0) {
+    return { isValid: false, error: 'Email is required' };
+  }
+  
+  // Check for @ symbol
+  if (!trimmedEmail.includes('@')) {
+    return { isValid: false, error: 'Email must contain @ symbol' };
+  }
+  
+  // Standard email regex: local@domain.tld
+  // - Local part: one or more characters that are not whitespace or @
+  // - Domain: one or more characters that are not whitespace or @
+  // - TLD: at least 2 characters after the last dot
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  
+  if (!emailRegex.test(trimmedEmail)) {
+    return { isValid: false, error: 'Please enter a valid email address' };
+  }
+  
+  return { isValid: true };
 };
 
+/**
+ * Legacy email validation for backward compatibility
+ */
+export const isValidEmail = (email: string): boolean => {
+  return validateEmail(email).isValid;
+};
+
+/**
+ * Validates password against security requirements
+ */
 export const validatePassword = (password: string): { isValid: boolean; errors: string[] } => {
   const errors: string[] = [];
   
@@ -29,6 +81,74 @@ export const validatePassword = (password: string): { isValid: boolean; errors: 
   return {
     isValid: errors.length === 0,
     errors,
+  };
+};
+
+/**
+ * Calculates password strength score and level
+ * Property 6: Password Strength Monotonicity
+ * For any two passwords where A is a prefix of B, score(B) >= score(A)
+ */
+export const calculatePasswordStrength = (password: string): PasswordStrength => {
+  if (!password || typeof password !== 'string') {
+    return {
+      level: 'weak',
+      score: 0,
+      suggestions: ['Enter a password'],
+    };
+  }
+  
+  let score = 0;
+  const suggestions: string[] = [];
+  
+  // Length scoring (monotonically increasing)
+  // Each character adds points, with diminishing returns after 16 chars
+  const lengthScore = Math.min(password.length * 4, 40);
+  score += lengthScore;
+  
+  if (password.length < 8) {
+    suggestions.push('Use at least 8 characters');
+  } else if (password.length < 12) {
+    suggestions.push('Consider using 12+ characters for better security');
+  }
+  
+  // Character variety scoring (additive, so monotonic)
+  const hasLowercase = /[a-z]/.test(password);
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-_=+\[\]\\;'\/`~]/.test(password);
+  
+  if (hasLowercase) score += 10;
+  else suggestions.push('Add lowercase letters');
+  
+  if (hasUppercase) score += 15;
+  else suggestions.push('Add uppercase letters');
+  
+  if (hasNumbers) score += 15;
+  else suggestions.push('Add numbers');
+  
+  if (hasSpecial) score += 20;
+  else suggestions.push('Add special characters (!@#$%^&*)');
+  
+  // Cap score at 100
+  score = Math.min(score, 100);
+  
+  // Determine level based on score
+  let level: 'weak' | 'fair' | 'good' | 'strong';
+  if (score < 30) {
+    level = 'weak';
+  } else if (score < 50) {
+    level = 'fair';
+  } else if (score < 75) {
+    level = 'good';
+  } else {
+    level = 'strong';
+  }
+  
+  return {
+    level,
+    score,
+    suggestions: suggestions.length > 0 ? suggestions : ['Great password!'],
   };
 };
 

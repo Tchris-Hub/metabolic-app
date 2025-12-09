@@ -4,6 +4,8 @@
 node_modules/
 
 # Expo
+.kiro/
+.vscode/
 .expo/
 dist/
 web-build/

@@ -6,10 +6,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import SuccessScreen from '../../../component/ui/successscreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: W, height: H } = Dimensions.get('window');
 
 export default function VerificationScreen() {
+  const insets = useSafeAreaInsets();
   const { email } = useLocalSearchParams();
   const displayEmail = typeof email === 'string' ? email : 'your email';
   const [isVerified, setIsVerified] = useState(false);
@@ -102,8 +104,8 @@ export default function VerificationScreen() {
       />
 
       {/* Header with centered logo */}
-      <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
-        <TouchableOpacity onPress={() => press(() => router.back())} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
+      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 16 }}>
+        <TouchableOpacity onPress={() => press(() => router.back())} style={{ position: 'absolute', left: 16, top: insets.top + 16, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
           <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>

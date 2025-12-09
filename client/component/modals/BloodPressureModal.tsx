@@ -10,6 +10,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -178,7 +179,7 @@ export default function BloodPressureModal({ visible, onClose, onSave }: BloodPr
               </View>
 
               {/* Content */}
-              <View style={styles.content}>
+              <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* BP Input */}
                 <View style={styles.inputSection}>
                   <Text style={[styles.label, { color: colors.text }]}>Blood Pressure Reading</Text>
@@ -278,7 +279,7 @@ export default function BloodPressureModal({ visible, onClose, onSave }: BloodPr
                     <Text style={styles.timeLabel}>Now</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </ScrollView>
 
               {/* Footer */}
               <View style={styles.footer}>
@@ -364,6 +365,7 @@ const styles = StyleSheet.create({
   },
   content: {
     marginBottom: 24,
+    maxHeight: SCREEN_HEIGHT * 0.5,
   },
   inputSection: {
     marginBottom: 24,

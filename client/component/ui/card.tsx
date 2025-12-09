@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, ViewStyle, TouchableOpacity } from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
 
 interface CardProps {
   children: React.ReactNode;
@@ -20,31 +21,36 @@ export default function Card({
   style,
   disabled = false,
 }: CardProps) {
+  const { colors, isDarkMode } = useTheme();
+
   const getCardStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       borderRadius: 12,
-      backgroundColor: 'white',
+      backgroundColor: colors.surface,
     };
+
+    // Shadow color adapts to theme
+    const shadowColor = isDarkMode ? '#000000' : '#000000';
 
     // Variant styles
     const variantStyles = {
       default: {
-        shadowColor: '#000',
+        shadowColor,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: isDarkMode ? 0.3 : 0.1,
         shadowRadius: 4,
         elevation: 2,
       },
       elevated: {
-        shadowColor: '#000',
+        shadowColor,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
+        shadowOpacity: isDarkMode ? 0.4 : 0.15,
         shadowRadius: 8,
         elevation: 4,
       },
       outlined: {
         borderWidth: 1,
-        borderColor: '#E0E0E0',
+        borderColor: colors.border,
         shadowColor: 'transparent',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0,

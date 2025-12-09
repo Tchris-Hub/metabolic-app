@@ -1,19 +1,23 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Dimensions, Animated, Switch, Alert, Keyboard, TouchableWithoutFeedback, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Animated, Switch, Keyboard, TouchableWithoutFeedback, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../../../contexts/AuthContext';
-import { Linking } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-
-const { width: W } = Dimensions.get('window');
+import { useToast } from '../../../contexts/ToastContext';
+import FormInput from '../../../component/ui/FormInput';
+import Button from '../../../component/ui/Button';
+import { ValidationResult } from '../../../utils/validationUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
-  const { login, isLoading, googleSignIn } = useAuth();
+  const { login, isLoading, isGoogleSignInLoading, googleSignIn } = useAuth();
+  const { showToast } = useToast();
+  const insets = useSafeAreaInsets();
   const logoBreath = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -22,15 +26,21 @@ export default function LoginScreen() {
       ])
     ).start();
   }, [logoBreath]);
+
   const Breath = (v: Animated.Value) => ({ transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.05] }) }] });
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [emailValidation, setEmailValidation] = useState<ValidationResult>({ isValid: false });
 
-  const emailValid = useMemo(() => /.+@.+\..+/.test(email), [email]);
-  const canSignIn = emailValid && password.length >= 1;
+  // Form is valid when email is valid and password has content
+  const canSignIn = emailValidation.isValid && password.length >= 1;
+
+  // Validation handler for email
+  const handleEmailValidation = useCallback((result: ValidationResult) => {
+    setEmailValidation(result);
+  }, []);
 
   const press = (fn: () => void) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -45,10 +55,10 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Login failed:', error);
-      
+
       // Show user-friendly error message
       let errorMessage = 'Login failed. Please try again.';
-      
+
       if (error instanceof Error) {
         if (error.message.includes('Invalid login credentials')) {
           errorMessage = 'Invalid email or password. Please check and try again.';
@@ -62,8 +72,8 @@ export default function LoginScreen() {
           errorMessage = error.message;
         }
       }
-      
-      Alert.alert('Login Failed', errorMessage, [{ text: 'OK' }]);
+
+      showToast({ type: 'error', message: errorMessage });
     }
   };
 
@@ -71,22 +81,22 @@ export default function LoginScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
         <View className="flex-1">
           <StatusBar style="light" />
           <ExpoLinearGradient
-            colors={[ '#2196F3', '#4CAF50' ] as [string, string, ...string[]]}
+            colors={['#2196F3', '#4CAF50'] as [string, string, ...string[]]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={{ position: 'absolute', inset: 0 as any }}
           />
 
           {/* Header with centered logo */}
-          <View style={{ paddingTop: 56, paddingHorizontal: 16 }}>
-            <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/welcome-screen'))} style={{ position: 'absolute', left: 16, top: 56, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
+          <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 16 }}>
+            <TouchableOpacity onPress={() => press(() => router.replace('/screens/auth/welcome-screen'))} style={{ position: 'absolute', left: 16, top: insets.top + 16, padding: 8, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.15)' }}>
               <Ionicons name="chevron-back" size={20} color="#fff" />
             </TouchableOpacity>
             <View style={{ alignItems: 'center' }}>
@@ -98,99 +108,137 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          <ScrollView 
+          <ScrollView
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 40 }}
           >
             <View style={{ marginTop: 24, paddingHorizontal: 20 }}>
               {/* OAuth options */}
               <TouchableOpacity
+                disabled={isGoogleSignInLoading}
                 onPress={async () => {
                   press(async () => {
                     try {
-                      const url = await googleSignIn();
-                      if (url) {
-                        const result = await WebBrowser.openAuthSessionAsync(url, 'client://auth/callback');
-                        if (result.type !== 'success') {
-                          // User cancelled or dismissed
-                          console.log('Google sign-in cancelled or dismissed', result);
-                        }
-                      } else {
-                        Alert.alert('Google Sign-In', 'Unable to start Google sign-in flow.');
+                      // googleSignIn() handles the entire OAuth flow internally
+                      // (opens browser, extracts tokens, sets session)
+                      await googleSignIn();
+                      // If we get here, sign-in was successful - navigate to main app
+                      router.replace('/(tabs)');
+                    } catch (e: any) {
+                      console.error('Google sign-in error:', e);
+                      // Map errors to user-friendly messages
+                      let errorMessage = 'Please try again.';
+                      if (e?.message?.includes('cancelled')) {
+                        // User cancelled - handle silently
+                        console.log('Google sign-in cancelled by user');
+                        return;
+                      } else if (e?.message?.includes('network') || e?.message?.includes('fetch')) {
+                        errorMessage = 'Network error. Please check your internet connection.';
+                      } else if (e?.message?.includes('configuration') || e?.message?.includes('redirect')) {
+                        errorMessage = 'Authentication configuration error. Please contact support.';
+                      } else if (e?.message?.includes('Missing tokens')) {
+                        errorMessage = 'Authentication failed. Please try again.';
+                      } else if (e?.message) {
+                        errorMessage = e.message;
                       }
-                    } catch (e) {
-                      console.error(e);
-                      Alert.alert('Google Sign-In Failed', 'Please try again.');
+                      showToast({ type: 'error', message: errorMessage });
                     }
                   });
                 }}
-                style={{ backgroundColor: 'white', paddingVertical: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                style={{
+                  backgroundColor: isGoogleSignInLoading ? 'rgba(255,255,255,0.7)' : 'white',
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
               >
-                <Ionicons name="logo-google" size={18} color="#DB4437" style={{ marginRight: 8 }} />
-                <Text style={{ color: '#111827', fontWeight: '600' }}>Continue with Google</Text>
+                <Ionicons
+                  name={isGoogleSignInLoading ? 'hourglass-outline' : 'logo-google'}
+                  size={18}
+                  color={isGoogleSignInLoading ? '#666' : '#DB4437'}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={{ color: isGoogleSignInLoading ? '#666' : '#111827', fontWeight: '600' }}>
+                  {isGoogleSignInLoading ? 'Signing in...' : 'Continue with Google'}
+                </Text>
               </TouchableOpacity>
 
               <View style={{ height: 16 }} />
-        <Text className="text-white/90 mb-2">Email address</Text>
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
-          <Ionicons name="mail" size={18} color="rgba(255,255,255,0.9)" style={{ marginRight: 8 }} />
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor="rgba(255,255,255,0.6)"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={{ color: 'white', flex: 1 }}
-          />
-          {emailValid && <Ionicons name="checkmark-circle" size={18} color="#A7F3D0" />}
-        </View>
 
-        <Text className="text-white/90 mb-2 mt-5">Password</Text>
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
-          <Ionicons name="lock-closed" size={18} color="rgba(255,255,255,0.9)" style={{ marginRight: 8 }} />
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Your password"
-            placeholderTextColor="rgba(255,255,255,0.6)"
-            secureTextEntry={!showPw}
-            autoCapitalize="none"
-            style={{ color: 'white', flex: 1 }}
-          />
-          <TouchableOpacity onPress={() => setShowPw(!showPw)}>
-            <Ionicons name={showPw ? 'eye-off' : 'eye'} size={18} color="rgba(255,255,255,0.9)" />
-          </TouchableOpacity>
-        </View>
+              {/* Email Input with validation */}
+              <FormInput
+                label="Email address"
+                placeholder="you@example.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                icon="mail"
+                validationType="email"
+                onValidationChange={handleEmailValidation}
+                validateOnChange={true}
+                validateOnBlur={true}
+                accessibilityHint="Enter your email address to sign in"
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  borderRadius: 12,
+                }}
+                inputStyle={{ color: 'white' }}
+              />
 
-        {/* Remember me */}
-        <View className="flex-row items-center justify-between mt-4">
-          <View className="flex-row items-center">
-            <Switch
-              value={rememberMe}
-              onValueChange={setRememberMe}
-              trackColor={{ false: 'rgba(255,255,255,0.3)', true: '#4CAF50' }}
-              thumbColor={rememberMe ? '#fff' : '#f4f3f4'}
-              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-            />
-            <Text className="text-white/90 ml-2 text-sm">Remember me</Text>
-          </View>
-          <TouchableOpacity onPress={() => press(() => router.push('/screens/auth/forgottenpassword'))}>
-            <Text className="text-white underline text-sm">Forgot password?</Text>
-          </TouchableOpacity>
-        </View>
+              {/* Password Input with validation */}
+              <FormInput
+                label="Password"
+                placeholder="Your password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={true}
+                icon="lock-closed"
+                validationType="none"
+                accessibilityHint="Enter your password to sign in"
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  borderRadius: 12,
+                }}
+                inputStyle={{ color: 'white' }}
+              />
 
-              {/* Sign In button */}
-              <TouchableOpacity 
-                disabled={!canSignIn || isLoading} 
-                onPress={() => press(signIn)} 
-                className="rounded-full mt-6" 
-                style={{ backgroundColor: canSignIn ? 'white' : 'rgba(255,255,255,0.4)', paddingVertical: 14 }}
-              >
-                <Text className="text-center font-bold" style={{ color: canSignIn ? '#111827' : '#374151' }}>
-                  {isLoading ? 'Signing In...' : 'Sign In'}
-                </Text>
-              </TouchableOpacity>
+              {/* Remember me */}
+              <View className="flex-row items-center justify-between mt-4">
+                <View className="flex-row items-center">
+                  <Switch
+                    value={rememberMe}
+                    onValueChange={setRememberMe}
+                    trackColor={{ false: 'rgba(255,255,255,0.3)', true: '#4CAF50' }}
+                    thumbColor={rememberMe ? '#fff' : '#f4f3f4'}
+                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                  />
+                  <Text className="text-white/90 ml-2 text-sm">Remember me</Text>
+                </View>
+                <TouchableOpacity onPress={() => press(() => router.push('/screens/auth/forgottenpassword'))}>
+                  <Text className="text-white underline text-sm">Forgot password?</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Sign In button - using accessible Button component */}
+              <View style={{ marginTop: 24 }}>
+                <Button
+                  title={isLoading ? 'Signing In...' : 'Sign In'}
+                  onPress={() => press(signIn)}
+                  disabled={!canSignIn}
+                  loading={isLoading}
+                  variant="primary"
+                  size="large"
+                  fullWidth
+                  accessibilityHint="Tap to sign in to your account"
+                  style={{
+                    backgroundColor: canSignIn ? 'white' : 'rgba(255,255,255,0.4)',
+                    borderRadius: 24,
+                  }}
+                  textStyle={{ color: canSignIn ? '#111827' : '#374151' }}
+                />
+              </View>
 
 
 

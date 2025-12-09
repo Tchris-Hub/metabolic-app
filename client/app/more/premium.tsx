@@ -8,6 +8,7 @@ import {
   Animated,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,12 +18,14 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { SUBSCRIPTION_PLANS } from '../../services/stripe/config';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type PlanType = 'MONTHLY' | 'YEARLY';
 
 export default function PremiumSubscriptionScreen() {
   const { isDarkMode, colors, gradients } = useTheme();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('YEARLY');
   const [isProcessing, setIsProcessing] = useState(false);
   const fadeAnim = new Animated.Value(0);
@@ -136,7 +139,7 @@ export default function PremiumSubscriptionScreen() {
       {/* Header */}
       <LinearGradient
         colors={['#667eea', '#764ba2'] as [string, string, ...string[]]}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
         <View style={styles.headerTop}>
           <TouchableOpacity

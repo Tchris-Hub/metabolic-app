@@ -6,10 +6,11 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isGoogleSignInLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
-  googleSignIn: () => Promise<string | null>;
+  googleSignIn: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGoogleSignInLoading, setIsGoogleSignInLoading] = useState(false);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -32,7 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadUser();
 
     // Listen for auth changes
-    const { data: { subscription } } = AuthService.onAuthStateChange((newUser) => {
+    const subscription = AuthService.onAuthStateChange((newUser) => {
       setUser(newUser);
     });
 
@@ -42,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { user: authUser } = await AuthService.login({ email, password });
+      const { user: authUser } = await AuthService.login(email, password);
       setUser(authUser);
     } finally {
       setIsLoading(false);
@@ -52,8 +54,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (email: string, password: string, displayName?: string) => {
     setIsLoading(true);
     try {
-      const { user: authUser, session } = await AuthService.signup({ email, password, displayName });
-      
+      const { user: authUser, session } = await AuthService.signup(email, password, displayName);
+
       // Only set user if we have a session (email confirmation disabled)
       // If session is null, email confirmation is required - user must verify email first
       if (session) {
@@ -77,20 +79,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const googleSignIn = async (): Promise<string | null> => {
+  const googleSignIn = async (): Promise<void> => {
     try {
-      const { url } = await AuthService.signInWithGoogle();
-      return url;
+      setIsGoogleSignInLoading(true);
+      // AuthService.signInWithGoogle handles the entire OAuth flow internally
+      // including opening the browser and setting the session
+      await AuthService.signInWithGoogle();
+      // After successful sign-in, get the current user
+      const currentUser = await AuthService.getCurrentUser();
+      setUser(currentUser);
     } catch (e) {
       console.error('Google sign-in failed', e);
-      return null;
+      throw e;
+    } finally {
+      setIsGoogleSignInLoading(false);
     }
   };
 
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, signup, logout, googleSignIn }}>
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated,
+      isLoading,
+      isGoogleSignInLoading,
+      login,
+      signup,
+      logout,
+      googleSignIn,
+    }}>
       {children}
     </AuthContext.Provider>
   );

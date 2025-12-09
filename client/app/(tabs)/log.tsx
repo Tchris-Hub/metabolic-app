@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
-  RefreshControl
+  RefreshControl,
+  Platform
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +16,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -32,6 +34,7 @@ interface CategoryCard {
 
 export default function LogScreen() {
   const { isDarkMode, colors, gradients } = useTheme();
+  const insets = useSafeAreaInsets();
   const [categories] = useState<CategoryCard[]>([
     {
       id: '1',
@@ -172,7 +175,7 @@ export default function LogScreen() {
         {/* Hero Header */}
         <LinearGradient
           colors={gradients.log as [string, string, ...string[]]}
-          style={styles.heroSection}
+          style={[styles.heroSection, { paddingTop: insets.top + 16 }]}
         >
           <Animated.View
             style={{
@@ -304,7 +307,7 @@ const styles = StyleSheet.create({
   },
   // Hero Section
   heroSection: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 40,
     paddingHorizontal: 24,
     marginBottom: 24,

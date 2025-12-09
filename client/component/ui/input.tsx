@@ -1,6 +1,8 @@
 import React, { useState, forwardRef } from 'react';
 import { View, TextInput, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getInputAccessibilityProps } from '../../utils/accessibilityUtils';
+import { useTheme } from '../../context/ThemeContext';
 
 interface InputProps {
   label?: string;
@@ -21,6 +23,7 @@ interface InputProps {
   maxLength?: number;
   style?: ViewStyle;
   inputStyle?: TextStyle;
+  accessibilityHint?: string;
 }
 
 const Input = forwardRef<TextInput, InputProps>(({
@@ -42,7 +45,9 @@ const Input = forwardRef<TextInput, InputProps>(({
   maxLength,
   style,
   inputStyle,
+  accessibilityHint,
 }, ref) => {
+  const { colors } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -54,10 +59,10 @@ const Input = forwardRef<TextInput, InputProps>(({
   const getInputContainerStyle = (): ViewStyle => ({
     flexDirection: 'row',
     alignItems: multiline ? 'flex-start' : 'center',
-    backgroundColor: disabled ? '#F5F5F5' : 'white',
+    backgroundColor: disabled ? colors.surfaceSecondary : colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: error ? '#F44336' : isFocused ? '#4CAF50' : '#E0E0E0',
+    borderColor: error ? colors.error : isFocused ? colors.success : colors.border,
     paddingHorizontal: 16,
     paddingVertical: multiline ? 12 : 0,
     minHeight: multiline ? 80 : 48,
@@ -67,7 +72,7 @@ const Input = forwardRef<TextInput, InputProps>(({
   const getInputStyle = (): TextStyle => ({
     flex: 1,
     fontSize: 16,
-    color: disabled ? '#9E9E9E' : '#212121',
+    color: disabled ? colors.textTertiary : colors.text,
     textAlignVertical: multiline ? 'top' : 'center',
     ...inputStyle,
   });
@@ -75,13 +80,13 @@ const Input = forwardRef<TextInput, InputProps>(({
   const getLabelStyle = (): TextStyle => ({
     fontSize: 14,
     fontWeight: '600',
-    color: error ? '#F44336' : '#424242',
+    color: error ? colors.error : colors.text,
     marginBottom: 8,
   });
 
   const getHelperTextStyle = (): TextStyle => ({
     fontSize: 12,
-    color: error ? '#F44336' : '#757575',
+    color: error ? colors.error : colors.textSecondary,
     marginTop: 4,
   });
 
@@ -95,7 +100,7 @@ const Input = forwardRef<TextInput, InputProps>(({
       <Ionicons
         name={icon}
         size={20}
-        color={isFocused ? '#4CAF50' : '#9E9E9E'}
+        color={isFocused ? colors.success : colors.textTertiary}
         style={{ marginRight: 12 }}
       />
     );
@@ -104,11 +109,16 @@ const Input = forwardRef<TextInput, InputProps>(({
   const renderRightIcon = () => {
     if (secureTextEntry) {
       return (
-        <TouchableOpacity onPress={handlePasswordToggle} style={{ padding: 4 }}>
+        <TouchableOpacity 
+          onPress={handlePasswordToggle} 
+          style={{ padding: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+        >
           <Ionicons
             name={showPassword ? 'eye-off' : 'eye'}
             size={20}
-            color="#9E9E9E"
+            color={colors.textTertiary}
           />
         </TouchableOpacity>
       );
@@ -116,11 +126,16 @@ const Input = forwardRef<TextInput, InputProps>(({
 
     if (rightIcon && onRightIconPress) {
       return (
-        <TouchableOpacity onPress={onRightIconPress} style={{ padding: 4 }}>
+        <TouchableOpacity 
+          onPress={onRightIconPress} 
+          style={{ padding: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel="Input action"
+        >
           <Ionicons
             name={rightIcon}
             size={20}
-            color="#9E9E9E"
+            color={colors.textTertiary}
           />
         </TouchableOpacity>
       );
@@ -129,12 +144,21 @@ const Input = forwardRef<TextInput, InputProps>(({
     return null;
   };
 
+  // Get accessibility props
+  const a11yProps = getInputAccessibilityProps({
+    label,
+    placeholder,
+    hint: accessibilityHint,
+    disabled,
+    error,
+  });
+
   return (
     <View style={getContainerStyle()}>
       {label && (
         <Text style={getLabelStyle()}>
           {label}
-          {required && <Text style={{ color: '#F44336' }}> *</Text>}
+          {required && <Text style={{ color: colors.error }}> *</Text>}
         </Text>
       )}
       
@@ -145,7 +169,7 @@ const Input = forwardRef<TextInput, InputProps>(({
           ref={ref}
           style={getInputStyle()}
           placeholder={placeholder}
-          placeholderTextColor="#9E9E9E"
+          placeholderTextColor={colors.textTertiary}
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={secureTextEntry && !showPassword}
@@ -156,6 +180,7 @@ const Input = forwardRef<TextInput, InputProps>(({
           maxLength={maxLength}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
+          {...a11yProps}
         />
         
         {renderRightIcon()}
@@ -173,4 +198,3 @@ const Input = forwardRef<TextInput, InputProps>(({
 Input.displayName = 'Input';
 
 export default Input;
-

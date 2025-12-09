@@ -5,10 +5,12 @@ import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: W, height: H } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
+  const insets = useSafeAreaInsets();
   const logoBreath = useRef(new Animated.Value(0)).current;
   const float1 = useRef(new Animated.Value(0)).current;
   const float2 = useRef(new Animated.Value(0)).current;
@@ -67,7 +69,7 @@ export default function WelcomeScreen() {
       </Animated.View>
 
       {/* Top: logo & branding */}
-      <View style={{ alignItems: 'center', marginTop: H * 0.10 }}>
+      <View style={{ alignItems: 'center', marginTop: insets.top + 20 }}>
         {/* Back button to Disclaimer */}
         <TouchableOpacity
           onPress={() => press(() => router.replace('/screens/auth/disclaimer-consent'))}
@@ -113,7 +115,7 @@ export default function WelcomeScreen() {
       </View>
 
       {/* Bottom: authentication */}
-      <View style={{ marginTop: 'auto', paddingHorizontal: 20, paddingBottom: 20 }}>
+      <View style={{ marginTop: 'auto', paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
         {/* Auth primary actions */}
         <TouchableOpacity onPress={() => press(() => router.push('/screens/auth/signup/step1'))} className="rounded-full flex-row items-center justify-center" style={{ backgroundColor: '#2196F3', paddingVertical: 14 }}>
           <Ionicons name="person-add" size={20} color="#fff" style={{ marginRight: 8 }} />

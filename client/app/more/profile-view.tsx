@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +18,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserProfileRepository, UserProfile } from '../../services/supabase/repositories/UserProfileRepository';
 import { AuthService } from '../../services/supabase/auth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -38,6 +40,7 @@ const AVATARS = [
 export default function ProfileViewScreen() {
   const { isDarkMode, colors, gradients } = useTheme();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [displayName, setDisplayName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
@@ -145,7 +148,7 @@ export default function ProfileViewScreen() {
       {/* Header */}
       <LinearGradient
         colors={gradients.more as [string, string, ...string[]]}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
         <View style={styles.headerTop}>
           <TouchableOpacity

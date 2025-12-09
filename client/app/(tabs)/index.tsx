@@ -9,7 +9,8 @@ import {
   Image,
   Animated,
   RefreshControl,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +25,7 @@ import { RootState } from '../../store/store';
 import { getRandomRecipesOnline } from '../../store/slices/mealSlice';
 import { router } from 'expo-router';
 import { lowCarbRecipes } from '../../data/recipes/lowCarbRecipes';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Import modals
 import BloodSugarModal from '../../component/modals/BloodSugarModal';
@@ -38,6 +40,7 @@ const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2; // 16px padding + 16px gap
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const { isDarkMode, colors, gradients } = useTheme();
   const dispatch = useDispatch();
   const { onlineRecipes, apiLoading } = useSelector((state: RootState) => state.meal);
@@ -471,7 +474,7 @@ export default function HomeScreen() {
       {/* Header Section */}
       <LinearGradient
         colors={gradients.home as [string, string, ...string[]]}
-        style={styles.headerGradient}
+        style={[styles.headerGradient, { paddingTop: insets.top + 10 }]}
       >
         <Animated.View 
           style={[

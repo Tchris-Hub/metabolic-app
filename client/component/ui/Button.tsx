@@ -1,6 +1,8 @@
-import React from 'react';
-import { TouchableOpacity, Text, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
+import React, { useRef } from 'react';
+import { TouchableOpacity, Text, ViewStyle, TextStyle, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getButtonAccessibilityProps } from '../../utils/accessibilityUtils';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ButtonProps {
   title: string;
@@ -14,6 +16,7 @@ interface ButtonProps {
   fullWidth?: boolean;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  accessibilityHint?: string;
 }
 
 export default function Button({
@@ -28,7 +31,34 @@ export default function Button({
   fullWidth = false,
   style,
   textStyle,
+  accessibilityHint,
 }: ButtonProps) {
+  const { colors } = useTheme();
+  
+  // Animation value for press effect
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  // Define contrasting text color for filled buttons
+  const filledTextColor = '#FFFFFF';
+
   const getButtonStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       flexDirection: 'row',
@@ -45,19 +75,19 @@ export default function Button({
       large: { paddingHorizontal: 32, paddingVertical: 16 },
     };
 
-    // Variant styles
+    // Variant styles using theme colors
     const variantStyles = {
       primary: {
-        backgroundColor: '#4CAF50',
-        borderColor: '#4CAF50',
+        backgroundColor: colors.success,
+        borderColor: colors.success,
       },
       secondary: {
-        backgroundColor: '#2196F3',
-        borderColor: '#2196F3',
+        backgroundColor: colors.info,
+        borderColor: colors.info,
       },
       outline: {
         backgroundColor: 'transparent',
-        borderColor: '#4CAF50',
+        borderColor: colors.success,
       },
       ghost: {
         backgroundColor: 'transparent',
@@ -87,11 +117,12 @@ export default function Button({
       large: { fontSize: 18 },
     };
 
+    // Variant text styles using theme colors
     const variantTextStyles = {
-      primary: { color: 'white' },
-      secondary: { color: 'white' },
-      outline: { color: '#4CAF50' },
-      ghost: { color: '#4CAF50' },
+      primary: { color: filledTextColor },
+      secondary: { color: filledTextColor },
+      outline: { color: colors.success },
+      ghost: { color: colors.success },
     };
 
     return {
@@ -106,7 +137,7 @@ export default function Button({
     if (!icon || loading) return null;
     
     const iconSize = size === 'small' ? 16 : size === 'medium' ? 18 : 20;
-    const iconColor = variant === 'outline' || variant === 'ghost' ? '#4CAF50' : 'white';
+    const iconColor = variant === 'outline' || variant === 'ghost' ? colors.success : filledTextColor;
     
     return (
       <Ionicons
@@ -118,26 +149,38 @@ export default function Button({
     );
   };
 
+  // Get accessibility props
+  const a11yProps = getButtonAccessibilityProps({
+    title,
+    disabled,
+    loading,
+    hint: accessibilityHint,
+  });
+
   return (
-    <TouchableOpacity
-      style={getButtonStyle()}
-      onPress={onPress}
-      disabled={disabled || loading}
-      activeOpacity={0.8}
-    >
-      {iconPosition === 'left' && renderIcon()}
-      
-      {loading ? (
-        <ActivityIndicator 
-          size="small" 
-          color={variant === 'outline' || variant === 'ghost' ? '#4CAF50' : 'white'} 
-        />
-      ) : (
-        <Text style={getTextStyle()}>{title}</Text>
-      )}
-      
-      {iconPosition === 'right' && renderIcon()}
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
+        style={getButtonStyle()}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled || loading}
+        activeOpacity={0.8}
+        {...a11yProps}
+      >
+        {iconPosition === 'left' && renderIcon()}
+        
+        {loading ? (
+          <ActivityIndicator 
+            size="small" 
+            color={variant === 'outline' || variant === 'ghost' ? colors.success : filledTextColor} 
+          />
+        ) : (
+          <Text style={getTextStyle()}>{title}</Text>
+        )}
+        
+        {iconPosition === 'right' && renderIcon()}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
-

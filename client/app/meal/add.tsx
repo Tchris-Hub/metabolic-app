@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AddMealScreen() {
   const { isDarkMode, colors, gradients } = useTheme();
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
   const [carbs, setCarbs] = useState('');
@@ -33,7 +35,7 @@ export default function AddMealScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
-      <LinearGradient colors={isDarkMode ? (gradients.meal as [string, string]) : ['#FFF3E0', '#FFFFFF']} style={styles.header}>
+      <LinearGradient colors={isDarkMode ? (gradients.meal as [string, string]) : ['#FFF3E0', '#FFFFFF']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={isDarkMode ? '#FFFFFF' : '#1F2937'} />
         </TouchableOpacity>

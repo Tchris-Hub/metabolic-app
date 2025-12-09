@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,10 +23,12 @@ import { AuthService } from '../../services/supabase/auth';
 import { UserProfileRepository } from '../../services/supabase/repositories/UserProfileRepository';
 import Modal from '../../component/ui/Modal';
 import { resetApp } from '../../utils/resetApp';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function MoreScreen() {
   const [isPremium] = useState(false);
   const { isDarkMode, toggleTheme, colors, gradients } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
   const [displayName, setDisplayName] = useState<string>('Guest');
   const [email, setEmail] = useState<string>('');
@@ -275,7 +278,7 @@ export default function MoreScreen() {
         {/* Hero Header */}
         <LinearGradient
           colors={gradients.more as [string, string, ...string[]]}
-          style={styles.heroSection}
+          style={[styles.heroSection, { paddingTop: insets.top + 16 }]}
         >
           <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
             <View style={styles.heroTop}>
