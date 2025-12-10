@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -36,15 +37,15 @@ export default function RecipeDetailScreen() {
   const [computedNutrition, setComputedNutrition] = useState<any>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
-  const fadeAnim = new Animated.Value(0);
-  const slideAnim = new Animated.Value(50);
-  const scaleAnim = new Animated.Value(0.9);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
     const loadRecipe = async () => {
       console.log('🔍 Loading recipe with ID:', id);
       console.log('🔍 Type of ID:', typeof id);
-      
+
       // First check local recipes
       let foundRecipe = lowCarbRecipes.find(r => String(r.id) === String(id));
       console.log('🔍 Found in local recipes:', !!foundRecipe);
@@ -53,33 +54,52 @@ export default function RecipeDetailScreen() {
         // Check if it's in the online recipes from search results
         const state = store.getState();
         const online = (state?.meal?.onlineRecipes || []) as any[];
+        console.log('🔍 Checking online recipes, count:', online.length);
         const match = online.find((r: any) => String(r.id) === String(id));
-        
+
         if (match) {
+          console.log('🔍 Found in online recipes:', match.name || match.title);
+          console.log('🔍 Match has ingredients:', !!match.ingredients, 'count:', match.ingredients?.length || 0);
+          console.log('🔍 Match has imageUrl:', !!match.imageUrl || !!match.image);
+
           // If we have basic info but no full details, fetch from API
           const recipeId = Number(match.id);
           if (!isNaN(recipeId) && (!match.ingredients || match.ingredients.length === 0)) {
+            console.log('🔍 Fetching full recipe details from API for ID:', recipeId);
             setIsLoadingDetails(true);
-            await dispatch(getRecipeDetailsById(recipeId) as any);
+            try {
+              await dispatch(getRecipeDetailsById(recipeId) as any);
+            } catch (error) {
+              console.error('🔍 Failed to fetch recipe details:', error);
+              // Fall back to the partial match we have
+              foundRecipe = match as any;
+            }
             setIsLoadingDetails(false);
             return; // Recipe will be set from Redux state
           }
+          // Use the match directly if it has enough data
           foundRecipe = match as any;
         } else {
-          // Try to fetch from API if it's a numeric ID
+          console.log('🔍 Not found in online recipes');
+          // Try to fetch from API if it's a numeric ID (Spoonacular recipe)
           const recipeId = Number(id);
-          if (!isNaN(recipeId)) {
+          if (!isNaN(recipeId) && recipeId > 100) { // Spoonacular IDs are typically large numbers
+            console.log('🔍 Fetching recipe from API for ID:', recipeId);
             setIsLoadingDetails(true);
-            await dispatch(getRecipeDetailsById(recipeId) as any);
+            try {
+              await dispatch(getRecipeDetailsById(recipeId) as any);
+            } catch (error) {
+              console.error('🔍 Failed to fetch recipe from API:', error);
+            }
             setIsLoadingDetails(false);
             return; // Recipe will be set from Redux state
           }
         }
       }
 
-      console.log('✅ Recipe loaded:', foundRecipe ? foundRecipe.name : 'NOT FOUND');
+      console.log('✅ Recipe loaded:', foundRecipe ? (foundRecipe.name || (foundRecipe as any).title) : 'NOT FOUND');
       setRecipe(foundRecipe || null);
-      
+
       // Compute nutrition from ingredients if available
       if (foundRecipe && foundRecipe.ingredients && foundRecipe.ingredients.length > 0) {
         const computed = NutritionCalculator.calculateRecipeNutrition(foundRecipe.ingredients);
@@ -115,7 +135,7 @@ export default function RecipeDetailScreen() {
   useEffect(() => {
     if (currentRecipeDetails && String(currentRecipeDetails.id) === String(id)) {
       setRecipe(currentRecipeDetails);
-      
+
       // Compute nutrition from ingredients if available
       if (currentRecipeDetails.ingredients && currentRecipeDetails.ingredients.length > 0) {
         const computed = NutritionCalculator.calculateRecipeNutrition(currentRecipeDetails.ingredients);
@@ -225,7 +245,16 @@ export default function RecipeDetailScreen() {
           </TouchableOpacity>
 
           <View style={styles.heroContent}>
-            <Text style={styles.heroEmoji}>{(recipe as any).image || '🍽️'}</Text>
+            {/* Check for actual image URL or fallback to emoji */}
+            {((recipe as any).imageUrl || (typeof (recipe as any).image === 'string' && (recipe as any).image.startsWith('http'))) ? (
+              <Image
+                source={{ uri: (recipe as any).imageUrl || (recipe as any).image }}
+                style={styles.heroImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={styles.heroEmoji}>{(recipe as any).image || '🍽️'}</Text>
+            )}
             <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor() }]}>
               <Text style={styles.difficultyText}>{recipe.difficulty}</Text>
             </View>
@@ -447,6 +476,13 @@ const styles = StyleSheet.create({
   },
   heroEmoji: {
     fontSize: 120,
+  },
+  heroImage: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   difficultyBadge: {
     position: 'absolute',

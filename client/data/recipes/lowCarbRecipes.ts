@@ -2,7 +2,8 @@ export interface Recipe {
   id: string;
   name: string;
   category: 'breakfast' | 'lunch' | 'dinner' | 'snack';
-  image: string;
+  image: string; // emoji fallback
+  imageUrl?: string; // actual image URL
   prepTime: number; // in minutes
   cookTime: number;
   servings: number;
@@ -30,6 +31,7 @@ export const lowCarbRecipes: Recipe[] = [
     name: 'Avocado & Egg Breakfast Bowl',
     category: 'breakfast',
     image: '🥑',
+    imageUrl: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400&auto=format&fit=crop&q=60',
     prepTime: 5,
     cookTime: 10,
     servings: 1,
@@ -67,6 +69,7 @@ export const lowCarbRecipes: Recipe[] = [
     name: 'Grilled Chicken Caesar Salad',
     category: 'lunch',
     image: '🥗',
+    imageUrl: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=400&auto=format&fit=crop&q=60',
     prepTime: 15,
     cookTime: 15,
     servings: 2,
@@ -105,6 +108,7 @@ export const lowCarbRecipes: Recipe[] = [
     name: 'Zucchini Noodles with Pesto',
     category: 'dinner',
     image: '🍝',
+    imageUrl: 'https://images.unsplash.com/photo-1556761223-4c4282c73f77?w=400&auto=format&fit=crop&q=60',
     prepTime: 10,
     cookTime: 10,
     servings: 2,
@@ -143,6 +147,7 @@ export const lowCarbRecipes: Recipe[] = [
     name: 'Salmon with Asparagus',
     category: 'dinner',
     image: '🐟',
+    imageUrl: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400&auto=format&fit=crop&q=60',
     prepTime: 10,
     cookTime: 20,
     servings: 2,
@@ -181,6 +186,7 @@ export const lowCarbRecipes: Recipe[] = [
     name: 'Greek Yogurt Parfait',
     category: 'breakfast',
     image: '🥄',
+    imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&auto=format&fit=crop&q=60',
     prepTime: 5,
     cookTime: 0,
     servings: 1,
@@ -218,6 +224,7 @@ export const lowCarbRecipes: Recipe[] = [
     name: 'Cauliflower Fried Rice',
     category: 'dinner',
     image: '🍚',
+    imageUrl: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=400&auto=format&fit=crop&q=60',
     prepTime: 15,
     cookTime: 15,
     servings: 4,
@@ -259,7 +266,7 @@ export const getRecipesByCategory = (category: Recipe['category']) => {
 };
 
 export const getRecipesByTags = (tags: string[]) => {
-  return lowCarbRecipes.filter(recipe => 
+  return lowCarbRecipes.filter(recipe =>
     tags.some(tag => recipe.tags.includes(tag))
   );
 };

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -46,7 +46,7 @@ export default function RecipeCard({ recipe, onPress, index }: RecipeCardProps) 
   const handlePress = async () => {
     console.log('🍽️ Recipe card clicked:', recipe.name, 'ID:', recipe.id);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
     Animated.sequence([
       Animated.timing(scaleAnim, {
         toValue: 0.95,
@@ -60,7 +60,7 @@ export default function RecipeCard({ recipe, onPress, index }: RecipeCardProps) 
         useNativeDriver: true,
       }),
     ]).start();
-    
+
     console.log('🔄 Calling onPress handler...');
     onPress();
     console.log('✅ onPress called');
@@ -117,9 +117,24 @@ export default function RecipeCard({ recipe, onPress, index }: RecipeCardProps) 
           colors={getCategoryColor() as [string, string, ...string[]]}
           style={styles.gradient}
         >
-          {/* Recipe Image/Emoji */}
+          {/* Recipe Image or Emoji */}
           <View style={styles.imageContainer}>
-            <Text style={styles.emoji}>{recipe.image}</Text>
+            {/* Check for actual image URL (from API) or emoji (from local data) */}
+            {((recipe as any).imageUrl || (typeof recipe.image === 'string' && recipe.image.startsWith('http'))) ? (
+              <>
+                <Image
+                  source={{ uri: (recipe as any).imageUrl || recipe.image }}
+                  style={styles.recipeImage}
+                  resizeMode="cover"
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.3)']}
+                  style={styles.imageOverlay}
+                />
+              </>
+            ) : (
+              <Text style={styles.emoji}>{recipe.image}</Text>
+            )}
             <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor() }]}>
               <Text style={styles.difficultyText}>{recipe.difficulty}</Text>
             </View>
@@ -198,6 +213,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
     position: 'relative',
+    overflow: 'hidden',
+  },
+  recipeImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
   },
   emoji: {
     fontSize: 64,
