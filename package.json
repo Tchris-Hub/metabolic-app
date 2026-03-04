@@ -1,0 +1,15 @@
+{
+  "name": "metabolic-health-root",
+  "private": true,
+  "scripts": {
+    "build": "npm run build --prefix metabolic-health/client",
+    "start": "npm start --prefix metabolic-health/client"
+  },
+  "dependencies": {
+    "expo": "^54.0.27"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
+  }
+}
